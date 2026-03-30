@@ -28,7 +28,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/", icon: <Home size={20} />, minRole: "employee" },
   { label: "My Schedule", href: "/schedule", icon: <Calendar size={20} />, minRole: "employee" },
-  { label: "Adjustments", href: "/adjustments", icon: <ArrowRightLeft size={20} />, minRole: "employee" },
+  { label: "Requests", href: "/requests", icon: <ArrowRightLeft size={20} />, minRole: "employee" },
   { label: "Attendance", href: "/attendance", icon: <Clock size={20} />, minRole: "employee" },
   { label: "Team Attendance", href: "/attendance/team", icon: <Clock size={20} />, minRole: "manager" },
   { label: "Flags", href: "/flags", icon: <Flag size={20} />, minRole: "employee" },

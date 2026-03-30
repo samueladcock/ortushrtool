@@ -9,10 +9,14 @@ export type AttendanceStatus =
   | "rest_day";
 export type FlagType = "late_arrival" | "early_departure" | "absent";
 export type WorkLocation = "office" | "online";
+export type LeaveType = "annual" | "sick" | "personal" | "unpaid" | "other";
+export type LeaveStatus = "pending" | "approved" | "rejected";
 export type NotificationType =
   | "schedule_adjustment_request"
   | "schedule_adjustment_decision"
-  | "attendance_flag";
+  | "attendance_flag"
+  | "leave_request"
+  | "leave_decision";
 
 export interface User {
   id: string;
@@ -103,6 +107,20 @@ export interface NotificationLog {
   sent_at: string;
   related_id: string | null;
   status: "sent" | "failed";
+}
+
+export interface LeaveRequest {
+  id: string;
+  employee_id: string;
+  leave_type: LeaveType;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  status: LeaveStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  reviewer_notes: string | null;
+  created_at: string;
 }
 
 // Extended types with joins
