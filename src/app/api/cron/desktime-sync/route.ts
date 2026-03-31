@@ -92,7 +92,7 @@ export async function GET(request: Request) {
       // DeskTime returns "arrived" as "2026-03-27 08:05:42" or false
       const arrivedStr = dtEmp.arrived && typeof dtEmp.arrived === "string" ? dtEmp.arrived : null;
       const leftStr = dtEmp.left && typeof dtEmp.left === "string" ? dtEmp.left : null;
-      const dtTimezone = (dtEmp as Record<string, unknown>).timezone as string | undefined;
+      const dtTimezone = dtEmp.timezone;
       const clockIn = arrivedStr ? parseDesktimeTimestamp(arrivedStr, dtTimezone) : null;
       const clockOut = leftStr ? parseDesktimeTimestamp(leftStr, dtTimezone) : null;
 
