@@ -1,9 +1,10 @@
 import { requireRole } from "@/lib/auth/helpers";
 import { createClient } from "@/lib/supabase/server";
-import { DAYS_OF_WEEK } from "@/lib/constants";
 import { UserScheduleEditor } from "@/components/admin/user-schedule-editor";
+import { AdminAdjustmentForm } from "@/components/admin/admin-adjustment-form";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { formatDate, formatTime } from "@/lib/utils";
 
 export default async function UserSchedulePage({
   params,
@@ -34,6 +35,15 @@ export default async function UserSchedulePage({
     .or(`effective_until.is.null,effective_until.gte.${today}`)
     .order("day_of_week", { ascending: true });
 
+  // Get upcoming adjustments
+  const { data: adjustments } = await supabase
+    .from("schedule_adjustments")
+    .select("*")
+    .eq("employee_id", userId)
+    .gte("requested_date", today)
+    .order("requested_date", { ascending: true })
+    .limit(20);
+
   // Get manager name
   let managerName = null;
   if (user.manager_id) {
@@ -58,11 +68,11 @@ export default async function UserSchedulePage({
     <div className="space-y-6">
       <div>
         <Link
-          href="/admin/schedules"
+          href="/admin/users"
           className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
         >
           <ArrowLeft size={16} />
-          Back to All Schedules
+          Back to Users
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">
           {user.full_name || user.email}
@@ -77,27 +87,78 @@ export default async function UserSchedulePage({
               <span>Manager: {managerName}</span>
             </>
           )}
-          {user.department && (
-            <>
-              <span className="text-gray-300">|</span>
-              <span>Dept: {user.department}</span>
-            </>
-          )}
         </div>
       </div>
 
-      <UserScheduleEditor
-        userId={userId}
-        schedules={(schedules ?? []).map((s) => ({
-          id: s.id,
-          day_of_week: s.day_of_week,
-          start_time: s.start_time,
-          end_time: s.end_time,
-          is_rest_day: s.is_rest_day,
-          work_location: s.work_location,
-          effective_from: s.effective_from,
-        }))}
-      />
+      {/* Default Schedule */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+          Default Weekly Schedule
+        </h2>
+        <UserScheduleEditor
+          userId={userId}
+          schedules={(schedules ?? []).map((s) => ({
+            id: s.id,
+            day_of_week: s.day_of_week,
+            start_time: s.start_time,
+            end_time: s.end_time,
+            is_rest_day: s.is_rest_day,
+            work_location: s.work_location,
+            effective_from: s.effective_from,
+          }))}
+        />
+      </div>
+
+      {/* One-off Adjustment */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+          Add One-Off Adjustment
+        </h2>
+        <AdminAdjustmentForm userId={userId} />
+      </div>
+
+      {/* Existing Adjustments */}
+      {adjustments && adjustments.length > 0 && (
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Upcoming Adjustments
+          </h2>
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div className="divide-y divide-gray-100">
+              {adjustments.map((adj) => (
+                <div
+                  key={adj.id}
+                  className="flex items-center justify-between p-4"
+                >
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium text-gray-900">
+                      {formatDate(adj.requested_date)}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {formatTime(adj.requested_start_time)} -{" "}
+                      {formatTime(adj.requested_end_time)}
+                    </p>
+                    {adj.reason && (
+                      <p className="text-xs text-gray-500">{adj.reason}</p>
+                    )}
+                  </div>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${
+                      adj.status === "approved"
+                        ? "bg-green-100 text-green-700"
+                        : adj.status === "rejected"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-yellow-100 text-yellow-700"
+                    }`}
+                  >
+                    {adj.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

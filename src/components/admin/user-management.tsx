@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Pencil, Save, X } from "lucide-react";
+import Link from "next/link";
+import { Pencil, Save, X, Calendar } from "lucide-react";
 import type { User, UserRole } from "@/types/database";
 
 export function UserManagement({
@@ -203,29 +204,41 @@ export function UserManagement({
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {isEditing ? (
-                        <div className="flex gap-1">
-                          <button
-                            onClick={saveEdit}
-                            className="rounded p-1 text-green-600 hover:bg-green-50"
-                          >
-                            <Save size={16} />
-                          </button>
-                          <button
-                            onClick={() => setEditingId(null)}
-                            className="rounded p-1 text-gray-400 hover:bg-gray-100"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => startEdit(user)}
-                          className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                      )}
+                      <div className="flex gap-1">
+                        {isEditing ? (
+                          <>
+                            <button
+                              onClick={saveEdit}
+                              className="rounded p-1 text-green-600 hover:bg-green-50"
+                            >
+                              <Save size={16} />
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              className="rounded p-1 text-gray-400 hover:bg-gray-100"
+                            >
+                              <X size={16} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => startEdit(user)}
+                              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                              title="Edit user"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <Link
+                              href={`/admin/schedules/${user.id}`}
+                              className="rounded p-1 text-blue-500 hover:bg-blue-50 hover:text-blue-700"
+                              title="Edit schedule"
+                            >
+                              <Calendar size={16} />
+                            </Link>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
