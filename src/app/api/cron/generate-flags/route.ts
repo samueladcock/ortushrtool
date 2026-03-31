@@ -18,15 +18,25 @@ export async function GET(request: Request) {
     const { data: logs } = await supabase
       .from("attendance_logs")
       .select(
-        "*, employee:users!attendance_logs_employee_id_fkey(id, full_name, email, manager_id)"
+        "*, employee:users!attendance_logs_employee_id_fkey(id, full_name, email, manager_id, holiday_country)"
       )
       .eq("date", flagDate)
       .in("status", ["late_arrival", "early_departure", "late_and_early", "absent"]);
 
+    // Check if the flag date is a holiday for any country
+    const { data: holidaysOnDate } = await supabase
+      .from("holidays")
+      .select("country")
+      .eq("date", flagDate);
+
+    const holidayCountries = new Set(
+      (holidaysOnDate ?? []).map((h) => h.country)
+    );
+
     // Also find employees with schedules but no attendance log (absent)
     const { data: allActiveUsers } = await supabase
       .from("users")
-      .select("id, full_name, email, manager_id, desktime_employee_id")
+      .select("id, full_name, email, manager_id, desktime_employee_id, timezone, holiday_country")
       .eq("is_active", true)
       .not("desktime_employee_id", "is", null);
 
@@ -46,6 +56,9 @@ export async function GET(request: Request) {
     for (const log of logs ?? []) {
       const employee = log.employee;
       if (!employee) continue;
+
+      // Skip if it's a holiday for this employee's country
+      if (employee.holiday_country && holidayCountries.has(employee.holiday_country)) continue;
 
       const flagTypes: {
         type: string;
@@ -166,6 +179,9 @@ export async function GET(request: Request) {
 
     for (const user of allActiveUsers ?? []) {
       if (loggedEmployeeIds.has(user.id)) continue;
+
+      // Skip if it's a holiday for this employee's country
+      if (user.holiday_country && holidayCountries.has(user.holiday_country)) continue;
 
       // Check if it's a rest day
       const { data: schedule } = await supabase

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Calendar,
+  CalendarHeart,
   Clock,
   Flag,
   BarChart3,
@@ -31,10 +32,12 @@ const navItems: NavItem[] = [
   { label: "Requests", href: "/requests", icon: <ArrowRightLeft size={20} />, minRole: "employee" },
   { label: "Attendance", href: "/attendance", icon: <Clock size={20} />, minRole: "employee" },
   { label: "Team Attendance", href: "/attendance/team", icon: <Clock size={20} />, minRole: "manager" },
+  { label: "Holidays", href: "/holidays", icon: <CalendarHeart size={20} />, minRole: "employee" },
   { label: "Flags", href: "/flags", icon: <Flag size={20} />, minRole: "employee" },
   { label: "All Attendance", href: "/attendance/all", icon: <Clock size={20} />, minRole: "hr_admin" },
   { label: "Reports", href: "/reports", icon: <BarChart3 size={20} />, minRole: "hr_admin" },
   { label: "All Schedules", href: "/admin/schedules", icon: <Calendar size={20} />, minRole: "hr_admin" },
+  { label: "Manage Holidays", href: "/admin/holidays", icon: <CalendarHeart size={20} />, minRole: "hr_admin" },
   { label: "Users", href: "/admin/users", icon: <Users size={20} />, minRole: "hr_admin" },
   { label: "Settings", href: "/admin/settings", icon: <Settings size={20} />, minRole: "super_admin" },
 ];

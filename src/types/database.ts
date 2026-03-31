@@ -11,6 +11,15 @@ export type FlagType = "late_arrival" | "early_departure" | "absent";
 export type WorkLocation = "office" | "online";
 export type LeaveType = "annual" | "sick" | "personal" | "unpaid" | "other";
 export type LeaveStatus = "pending" | "approved" | "rejected";
+export type HolidayCountry = "PH" | "XK" | "IT" | "AE";
+
+export const HOLIDAY_COUNTRY_LABELS: Record<HolidayCountry, string> = {
+  PH: "Philippines",
+  XK: "Kosovo",
+  IT: "Italy",
+  AE: "Dubai (UAE)",
+};
+
 export type NotificationType =
   | "schedule_adjustment_request"
   | "schedule_adjustment_decision"
@@ -27,6 +36,7 @@ export interface User {
   department: string | null;
   desktime_employee_id: number | null;
   timezone: string;
+  holiday_country: HolidayCountry;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -121,6 +131,17 @@ export interface LeaveRequest {
   reviewed_at: string | null;
   reviewer_notes: string | null;
   created_at: string;
+}
+
+export interface Holiday {
+  id: string;
+  country: HolidayCountry;
+  name: string;
+  date: string;
+  is_recurring: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // Extended types with joins
