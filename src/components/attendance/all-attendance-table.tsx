@@ -163,6 +163,7 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
         </div>
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => goDay(-1)}
             className="rounded-lg border border-gray-300 p-2 hover:bg-gray-50"
           >
@@ -175,6 +176,7 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
           />
           <button
+            type="button"
             onClick={() => goDay(1)}
             className="rounded-lg border border-gray-300 p-2 hover:bg-gray-50"
           >
