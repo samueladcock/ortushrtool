@@ -25,6 +25,7 @@ export function LeaveActions({ leaveId }: { leaveId: string }) {
       data: { user },
     } = await supabase.auth.getUser();
 
+    // Update leave status
     await supabase
       .from("leave_requests")
       .update({
@@ -35,7 +36,7 @@ export function LeaveActions({ leaveId }: { leaveId: string }) {
       })
       .eq("id", leaveId);
 
-    // Send decision notification
+    // Send email to employee AND manager
     try {
       await fetch("/api/notifications/leave-decision", {
         method: "POST",

@@ -25,6 +25,7 @@ export function AdjustmentActions({ adjustmentId }: { adjustmentId: string }) {
       data: { user },
     } = await supabase.auth.getUser();
 
+    // Update the adjustment status
     await supabase
       .from("schedule_adjustments")
       .update({
@@ -34,6 +35,21 @@ export function AdjustmentActions({ adjustmentId }: { adjustmentId: string }) {
         reviewer_notes: notes || null,
       })
       .eq("id", adjustmentId);
+
+    // Send email notification to employee and manager
+    try {
+      await fetch("/api/notifications/adjustment-decision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adjustment_id: adjustmentId,
+          status,
+          notes: notes || null,
+        }),
+      });
+    } catch {
+      // Non-blocking
+    }
 
     router.refresh();
   };
