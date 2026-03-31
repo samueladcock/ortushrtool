@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Pencil, Save, X, Calendar, Trash2, Plus } from "lucide-react";
+import { Pencil, Save, X, Calendar, Trash2, Plus, KeyRound } from "lucide-react";
 import type { User, UserRole, HolidayCountry } from "@/types/database";
 import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
 
@@ -57,6 +57,7 @@ export function UserManagement({
   };
 
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [resettingPassword, setResettingPassword] = useState<string | null>(null);
 
   const deleteUser = async (user: User) => {
     if (!confirm(`Permanently delete ${user.full_name || user.email}? This will remove all their data (schedules, attendance, flags, etc.) and cannot be undone.`)) {
@@ -79,6 +80,28 @@ export function UserManagement({
       alert("Failed to delete user");
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const resetPassword = async (user: User) => {
+    if (!confirm(`Send a password reset email to ${user.full_name || user.email}?`)) return;
+    setResettingPassword(user.id);
+    try {
+      const res = await fetch("/api/admin/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || "Failed to send reset email");
+      } else {
+        alert(`Password reset email sent to ${user.email}`);
+      }
+    } catch {
+      alert("Failed to send reset email");
+    } finally {
+      setResettingPassword(null);
     }
   };
 
@@ -301,6 +324,14 @@ export function UserManagement({
                             >
                               <Calendar size={16} />
                             </Link>
+                            <button
+                              onClick={() => resetPassword(user)}
+                              disabled={resettingPassword === user.id}
+                              className="rounded p-1 text-amber-500 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50"
+                              title="Send password reset email"
+                            >
+                              <KeyRound size={16} />
+                            </button>
                             <button
                               onClick={() => deleteUser(user)}
                               disabled={deleting === user.id}

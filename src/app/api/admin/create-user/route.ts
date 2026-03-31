@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { sendEmail } from "@/lib/email/resend";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -94,6 +95,36 @@ export async function POST(request: Request) {
         effective_from: today,
       });
     }
+  }
+
+  // Send password setup email
+  try {
+    const { data: linkData } = await admin.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/auth/callback?next=/auth/set-password`,
+      },
+    });
+
+    const resetLink = linkData?.properties?.action_link || "";
+    if (resetLink) {
+      await sendEmail({
+        to: email,
+        subject: "Welcome to Ortus Club HR — Set Up Your Password",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #1f2937;">Welcome to Ortus Club HR</h2>
+            <p>Hi ${full_name || "there"},</p>
+            <p>Your account has been created. Please click the button below to set your password and get started:</p>
+            <a href="${resetLink}" style="display: inline-block; margin-top: 16px; padding: 12px 24px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">Set Up Your Password</a>
+            <p style="margin-top: 16px; color: #6b7280; font-size: 14px;">If you have an @ortusclub.com email, you can also sign in directly with Google.</p>
+          </div>
+        `,
+      });
+    }
+  } catch {
+    // Non-blocking — user is created even if email fails
   }
 
   return NextResponse.json({ success: true, id: authData.user.id });

@@ -1,12 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const error = searchParams.get("error");
+  const urlError = searchParams.get("error");
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(urlError ? decodeURIComponent(urlError) : "");
+  const [loading, setLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
     const supabase = createClient();
@@ -21,23 +29,132 @@ function LoginForm() {
     });
   };
 
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    const supabase = createClient();
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (signInError) {
+      setError(signInError.message);
+      setLoading(false);
+      return;
+    }
+
+    window.location.href = "/";
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError("Enter your email address first, then click Forgot Password.");
+      return;
+    }
+
+    setForgotLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Failed to send request");
+      } else {
+        setForgotSent(true);
+      }
+    } catch {
+      setError("Failed to send request");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md space-y-8 rounded-xl bg-white p-8 shadow-lg">
+      <div className="w-full max-w-md space-y-6 rounded-xl bg-white p-8 shadow-lg">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">Ortus Club</h1>
           <p className="mt-2 text-gray-600">
             Schedule & Attendance Management
           </p>
         </div>
+
         {error && (
           <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-            Auth error: {decodeURIComponent(error)}
+            {error}
           </div>
         )}
+
+        {forgotSent && (
+          <div className="rounded-md bg-green-50 p-3 text-sm text-green-700">
+            Your request has been sent to an administrator. They will help you reset your password.
+          </div>
+        )}
+
+        {/* Email/Password form */}
+        <form onSubmit={handleEmailLogin} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50"
+          >
+            {loading ? "Signing in..." : "Sign in"}
+          </button>
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            disabled={forgotLoading}
+            className="w-full text-center text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50"
+          >
+            {forgotLoading ? "Sending..." : "Forgot password?"}
+          </button>
+        </form>
+
+        {/* Divider */}
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="bg-white px-4 text-gray-500">or</span>
+          </div>
+        </div>
+
+        {/* Google login */}
         <button
           onClick={handleGoogleLogin}
-          className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+          className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24">
             <path
@@ -59,8 +176,8 @@ function LoginForm() {
           </svg>
           Sign in with Google
         </button>
-        <p className="text-center text-xs text-gray-500">
-          Only @ortusclub.com accounts are allowed
+        <p className="text-center text-xs text-gray-400">
+          Google sign-in for @ortusclub.com accounts
         </p>
       </div>
     </div>
