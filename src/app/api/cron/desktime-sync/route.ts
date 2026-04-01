@@ -234,6 +234,12 @@ export async function GET(request: Request) {
       skipped,
       total: dtEmployees.length,
       mappedUsers: userMap.size,
+      debug: {
+        isSyncingToday,
+        today,
+        syncDate,
+        serverTime: new Date().toISOString(),
+      },
     });
   } catch (error) {
     console.error("DeskTime sync error:", error);
