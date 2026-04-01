@@ -9,7 +9,10 @@ import type { SystemSetting } from "@/types/database";
 const SETTING_LABELS: Record<string, string> = {
   late_tolerance_minutes: "Late Arrival Tolerance (minutes)",
   early_tolerance_minutes: "Early Departure Tolerance (minutes)",
+  attendance_flag_emails_enabled: "Send Attendance Flag Emails",
 };
+
+const BOOLEAN_SETTINGS = new Set(["attendance_flag_emails_enabled"]);
 
 export function SettingsForm({ settings }: { settings: SystemSetting[] }) {
   const router = useRouter();
@@ -57,12 +60,35 @@ export function SettingsForm({ settings }: { settings: SystemSetting[] }) {
           <label className="block text-sm font-medium text-gray-700">
             {SETTING_LABELS[key] ?? key}
           </label>
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => setValues({ ...values, [key]: e.target.value })}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+          {BOOLEAN_SETTINGS.has(key) ? (
+            <button
+              type="button"
+              onClick={() =>
+                setValues({
+                  ...values,
+                  [key]: value === "true" ? "false" : "true",
+                })
+              }
+              className={`mt-1 relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                value === "true" ? "bg-blue-600" : "bg-gray-200"
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  value === "true" ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          ) : (
+            <input
+              type="text"
+              value={value}
+              onChange={(e) =>
+                setValues({ ...values, [key]: e.target.value })
+              }
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          )}
           <p className="mt-1 text-xs text-gray-500">Key: {key}</p>
         </div>
       ))}

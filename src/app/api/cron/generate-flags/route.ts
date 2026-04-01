@@ -50,6 +50,16 @@ export async function GET(request: Request) {
       .eq("is_active", true);
 
     const hrEmails = (hrAdmins ?? []).map((a) => a.email);
+
+    // Check if flag emails are enabled
+    const { data: emailSetting } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "attendance_flag_emails_enabled")
+      .maybeSingle();
+
+    const emailsEnabled = emailSetting?.value === "true";
+
     let flagsCreated = 0;
 
     // Process logs with violations
@@ -129,46 +139,48 @@ export async function GET(request: Request) {
 
         flagsCreated++;
 
-        // Send notifications
-        const emailHtml = flagNotificationEmail({
-          employeeName: employee.full_name || employee.email,
-          flagDate,
-          flagType: flag.type,
-          scheduledTime: flag.scheduled,
-          actualTime: flag.actual,
-          deviationMinutes: flag.deviation,
-        });
-
-        const recipients = [employee.email, ...hrEmails];
-
-        // Add manager email
-        if (employee.manager_id) {
-          const { data: manager } = await supabase
-            .from("users")
-            .select("email")
-            .eq("id", employee.manager_id)
-            .single();
-
-          if (manager) recipients.push(manager.email);
-        }
-
-        const uniqueRecipients = [...new Set(recipients)];
-
-        const result = await sendEmail({
-          to: uniqueRecipients,
-          subject: `Attendance Flag: ${employee.full_name || employee.email} - ${flag.type.replace("_", " ")}`,
-          html: emailHtml,
-        });
-
-        // Log notification
-        for (const email of uniqueRecipients) {
-          await supabase.from("notification_log").insert({
-            type: "attendance_flag",
-            recipient_email: email,
-            subject: `Attendance Flag: ${flag.type.replace("_", " ")}`,
-            related_id: log.id,
-            status: result.success ? "sent" : "failed",
+        // Send notifications (only if enabled)
+        if (emailsEnabled) {
+          const emailHtml = flagNotificationEmail({
+            employeeName: employee.full_name || employee.email,
+            flagDate,
+            flagType: flag.type,
+            scheduledTime: flag.scheduled,
+            actualTime: flag.actual,
+            deviationMinutes: flag.deviation,
           });
+
+          const recipients = [employee.email, ...hrEmails];
+
+          // Add manager email
+          if (employee.manager_id) {
+            const { data: manager } = await supabase
+              .from("users")
+              .select("email")
+              .eq("id", employee.manager_id)
+              .single();
+
+            if (manager) recipients.push(manager.email);
+          }
+
+          const uniqueRecipients = [...new Set(recipients)];
+
+          const result = await sendEmail({
+            to: uniqueRecipients,
+            subject: `Attendance Flag: ${employee.full_name || employee.email} - ${flag.type.replace("_", " ")}`,
+            html: emailHtml,
+          });
+
+          // Log notification
+          for (const email of uniqueRecipients) {
+            await supabase.from("notification_log").insert({
+              type: "attendance_flag",
+              recipient_email: email,
+              subject: `Attendance Flag: ${flag.type.replace("_", " ")}`,
+              related_id: log.id,
+              status: result.success ? "sent" : "failed",
+            });
+          }
         }
       }
     }
