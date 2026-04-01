@@ -283,9 +283,12 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
                       {(() => {
                         if (!log?.clock_out) return "-";
                         const isToday = selectedDate === new Date().toISOString().split("T")[0];
-                        const hasEarlyDeparture = log.status === "early_departure" || log.status === "late_and_early";
-                        if (isToday && !hasEarlyDeparture) return "-";
-                        return formatClockTime(log.clock_out, tz);
+                        if (!isToday) return formatClockTime(log.clock_out, tz);
+                        // Show clock out if inactive for more than 1 hour
+                        const msSinceLastActive = Date.now() - new Date(log.clock_out).getTime();
+                        const inactiveOver1h = msSinceLastActive > 60 * 60 * 1000;
+                        if (inactiveOver1h) return <span className="text-orange-500">{formatClockTime(log.clock_out, tz)}</span>;
+                        return "-";
                       })()}
                     </td>
                     <td className="px-4 py-3">
