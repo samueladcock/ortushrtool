@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth/helpers";
 import { createClient } from "@/lib/supabase/server";
 import { hasRole, formatDate, formatTime } from "@/lib/utils";
 import { AdjustmentActions } from "@/components/adjustments/adjustment-actions";
+import { CancelRequest } from "@/components/shared/cancel-request";
 import Link from "next/link";
 
 export default async function AdjustmentsPage() {
@@ -69,22 +70,41 @@ export default async function AdjustmentsPage() {
                       {formatDate(adj.requested_date)}
                     </p>
                     <p className="text-sm text-gray-700">
-                      <span className="font-medium">Original:</span>{" "}
-                      {formatTime(adj.original_start_time)} -{" "}
-                      {formatTime(adj.original_end_time)}
+                      <span className="font-medium">Type:</span>{" "}
+                      {adj.adjustment_type === "time" ? "Time change" : adj.adjustment_type === "location" ? "Location change" : adj.adjustment_type === "both" ? "Time & location change" : "Schedule change"}
                     </p>
-                    <p className="text-sm text-gray-700">
-                      <span className="font-medium">Requested:</span>{" "}
-                      {formatTime(adj.requested_start_time)} -{" "}
-                      {formatTime(adj.requested_end_time)}
-                    </p>
+                    {(adj.adjustment_type === "time" || adj.adjustment_type === "both" || !adj.adjustment_type) && (
+                      <>
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Original:</span>{" "}
+                          {formatTime(adj.original_start_time)} -{" "}
+                          {formatTime(adj.original_end_time)}
+                        </p>
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Requested:</span>{" "}
+                          {formatTime(adj.requested_start_time)} -{" "}
+                          {formatTime(adj.requested_end_time)}
+                        </p>
+                      </>
+                    )}
+                    {adj.requested_work_location && (
+                      <p className="text-sm text-gray-700">
+                        <span className="font-medium">Location:</span>{" "}
+                        <span className={adj.requested_work_location === "office" ? "text-blue-600" : "text-green-600"}>
+                          {adj.requested_work_location === "office" ? "Office" : "Online"}
+                        </span>
+                      </p>
+                    )}
                     <p className="text-sm text-gray-600">
                       <span className="font-medium">Reason:</span> {adj.reason}
                     </p>
                   </div>
-                  {isReviewer && (
-                    <AdjustmentActions adjustmentId={adj.id} />
-                  )}
+                  <div className="flex flex-col items-end gap-2">
+                    {isReviewer && <AdjustmentActions adjustmentId={adj.id} />}
+                    {!isReviewer && (
+                      <CancelRequest requestId={adj.id} table="schedule_adjustments" />
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -111,8 +131,14 @@ export default async function AdjustmentsPage() {
                   )}
                   <p className="text-sm text-gray-700">
                     {formatDate(adj.requested_date)} &mdash;{" "}
-                    {formatTime(adj.requested_start_time)} -{" "}
-                    {formatTime(adj.requested_end_time)}
+                    {(adj.adjustment_type === "time" || adj.adjustment_type === "both" || !adj.adjustment_type) && (
+                      <>{formatTime(adj.requested_start_time)} - {formatTime(adj.requested_end_time)}</>
+                    )}
+                    {adj.requested_work_location && (
+                      <span className={`ml-2 inline-block rounded px-1.5 py-0.5 text-xs font-medium ${adj.requested_work_location === "office" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
+                        {adj.requested_work_location === "office" ? "Office" : "Online"}
+                      </span>
+                    )}
                   </p>
                   <p className="text-sm text-gray-600">{adj.reason}</p>
                   {adj.reviewer_notes && (
@@ -121,7 +147,12 @@ export default async function AdjustmentsPage() {
                     </p>
                   )}
                 </div>
-                <StatusBadge status={adj.status} />
+                <div className="flex items-center gap-3">
+                  {isReviewer && (
+                    <AdjustmentActions adjustmentId={adj.id} currentStatus={adj.status as "approved" | "rejected"} />
+                  )}
+                  <StatusBadge status={adj.status} />
+                </div>
               </div>
             ))}
           </div>

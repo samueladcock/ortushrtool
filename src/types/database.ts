@@ -61,14 +61,18 @@ export interface Schedule {
   updated_at: string;
 }
 
+export type ScheduleAdjustmentType = "time" | "location" | "both";
+
 export interface ScheduleAdjustment {
   id: string;
   employee_id: string;
   requested_date: string;
+  adjustment_type: ScheduleAdjustmentType;
   original_start_time: string;
   original_end_time: string;
   requested_start_time: string;
   requested_end_time: string;
+  requested_work_location: WorkLocation | null;
   reason: string;
   status: AdjustmentStatus;
   reviewed_by: string | null;

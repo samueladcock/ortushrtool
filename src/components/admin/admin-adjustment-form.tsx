@@ -4,14 +4,17 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
+import type { ScheduleAdjustmentType, WorkLocation } from "@/types/database";
 
 export function AdminAdjustmentForm({ userId }: { userId: string }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [dates, setDates] = useState<string[]>([""]);
+  const [adjustmentType, setAdjustmentType] = useState<ScheduleAdjustmentType>("time");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [requestedLocation, setRequestedLocation] = useState<WorkLocation>("office");
   const [reason, setReason] = useState("");
 
   const addDate = () => setDates([...dates, ""]);
@@ -20,6 +23,9 @@ export function AdminAdjustmentForm({ userId }: { userId: string }) {
   const updateDate = (idx: number, value: string) =>
     setDates(dates.map((d, i) => (i === idx ? value : d)));
 
+  const showTimeFields = adjustmentType === "time" || adjustmentType === "both";
+  const showLocationField = adjustmentType === "location" || adjustmentType === "both";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validDates = dates.filter((d) => d);
@@ -27,7 +33,7 @@ export function AdminAdjustmentForm({ userId }: { userId: string }) {
       setMessage("Please select at least one date.");
       return;
     }
-    if (!startTime || !endTime) {
+    if (showTimeFields && (!startTime || !endTime)) {
       setMessage("Please set start and end times.");
       return;
     }
@@ -53,15 +59,20 @@ export function AdminAdjustmentForm({ userId }: { userId: string }) {
         .limit(1)
         .maybeSingle();
 
+      const originalStart = schedule?.start_time ?? "09:00";
+      const originalEnd = schedule?.end_time ?? "18:00";
+
       const { error } = await supabase
         .from("schedule_adjustments")
         .insert({
           employee_id: userId,
           requested_date: date,
-          original_start_time: schedule?.start_time ?? "09:00",
-          original_end_time: schedule?.end_time ?? "18:00",
-          requested_start_time: startTime,
-          requested_end_time: endTime,
+          adjustment_type: adjustmentType,
+          original_start_time: originalStart,
+          original_end_time: originalEnd,
+          requested_start_time: showTimeFields ? startTime : originalStart,
+          requested_end_time: showTimeFields ? endTime : originalEnd,
+          requested_work_location: showLocationField ? requestedLocation : null,
           reason: reason || "Admin adjustment",
           status: "approved",
           reviewed_by: (await supabase.auth.getUser()).data.user?.id,
@@ -78,8 +89,10 @@ export function AdminAdjustmentForm({ userId }: { userId: string }) {
         `Adjustment added for ${validDates.length} date(s) — auto-approved.`
       );
       setDates([""]);
+      setAdjustmentType("time");
       setStartTime("");
       setEndTime("");
+      setRequestedLocation("office");
       setReason("");
     }
 
@@ -96,6 +109,45 @@ export function AdminAdjustmentForm({ userId }: { userId: string }) {
         Add a one-off schedule change for specific dates. This will be
         auto-approved as an admin override.
       </p>
+
+      {/* What to change */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          What to change
+        </label>
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="admin_adj_type"
+              checked={adjustmentType === "time"}
+              onChange={() => setAdjustmentType("time")}
+              className="h-4 w-4 text-blue-600"
+            />
+            <span className="text-sm text-gray-700">Time</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="admin_adj_type"
+              checked={adjustmentType === "location"}
+              onChange={() => setAdjustmentType("location")}
+              className="h-4 w-4 text-blue-600"
+            />
+            <span className="text-sm text-gray-700">Location</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="admin_adj_type"
+              checked={adjustmentType === "both"}
+              onChange={() => setAdjustmentType("both")}
+              className="h-4 w-4 text-blue-600"
+            />
+            <span className="text-sm text-gray-700">Both</span>
+          </label>
+        </div>
+      </div>
 
       {/* Dates */}
       <div>
@@ -134,30 +186,63 @@ export function AdminAdjustmentForm({ userId }: { userId: string }) {
       </div>
 
       {/* Times */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Start time
-          </label>
-          <input
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+      {showTimeFields && (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Start time
+            </label>
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              End time
+            </label>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
         </div>
+      )}
+
+      {/* Location */}
+      {showLocationField && (
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            End time
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Work location
           </label>
-          <input
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="admin_adj_location"
+                checked={requestedLocation === "office"}
+                onChange={() => setRequestedLocation("office")}
+                className="h-4 w-4 text-blue-600"
+              />
+              <span className="text-sm text-gray-700">Office</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="admin_adj_location"
+                checked={requestedLocation === "online"}
+                onChange={() => setRequestedLocation("online")}
+                className="h-4 w-4 text-blue-600"
+              />
+              <span className="text-sm text-gray-700">Online</span>
+            </label>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Reason */}
       <div>

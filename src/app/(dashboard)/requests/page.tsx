@@ -4,6 +4,7 @@ import { hasRole, formatDate, formatTime } from "@/lib/utils";
 import { AdjustmentActions } from "@/components/adjustments/adjustment-actions";
 import { LeaveActions } from "@/components/leave/leave-actions";
 import { HolidayWorkActions } from "@/components/holiday-work/holiday-work-actions";
+import { CancelRequest } from "@/components/shared/cancel-request";
 import Link from "next/link";
 import { ArrowRightLeft, CalendarOff, CalendarCheck } from "lucide-react";
 
@@ -141,7 +142,12 @@ export default async function RequestsPage() {
                     </p>
                     <p className="text-sm text-gray-600">{adj.reason}</p>
                   </div>
-                  {isReviewer && <AdjustmentActions adjustmentId={adj.id} />}
+                  <div className="flex flex-col items-end gap-2">
+                    {isReviewer && <AdjustmentActions adjustmentId={adj.id} />}
+                    {!isReviewer && (
+                      <CancelRequest requestId={adj.id} table="schedule_adjustments" />
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -180,7 +186,12 @@ export default async function RequestsPage() {
                     </p>
                     <p className="text-sm text-gray-600">{leave.reason}</p>
                   </div>
-                  {isReviewer && <LeaveActions leaveId={leave.id} />}
+                  <div className="flex flex-col items-end gap-2">
+                    {isReviewer && <LeaveActions leaveId={leave.id} />}
+                    {!isReviewer && (
+                      <CancelRequest requestId={leave.id} table="leave_requests" />
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -227,7 +238,12 @@ export default async function RequestsPage() {
                     </p>
                     <p className="text-sm text-gray-600">{hw.reason}</p>
                   </div>
-                  {isReviewer && <HolidayWorkActions requestId={hw.id} />}
+                  <div className="flex flex-col items-end gap-2">
+                    {isReviewer && <HolidayWorkActions requestId={hw.id} />}
+                    {!isReviewer && (
+                      <CancelRequest requestId={hw.id} table="holiday_work_requests" />
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -268,7 +284,12 @@ export default async function RequestsPage() {
                     </p>
                   )}
                 </div>
-                <StatusBadge status={adj.status} />
+                <div className="flex items-center gap-3">
+                  {isReviewer && (
+                    <AdjustmentActions adjustmentId={adj.id} currentStatus={adj.status} />
+                  )}
+                  <StatusBadge status={adj.status} />
+                </div>
               </div>
             ))}
             {pastLeave.map((leave) => (
@@ -294,7 +315,12 @@ export default async function RequestsPage() {
                     </p>
                   )}
                 </div>
-                <StatusBadge status={leave.status} />
+                <div className="flex items-center gap-3">
+                  {isReviewer && (
+                    <LeaveActions leaveId={leave.id} currentStatus={leave.status} />
+                  )}
+                  <StatusBadge status={leave.status} />
+                </div>
               </div>
             ))}
             {pastHW.map((hw) => (
@@ -321,7 +347,12 @@ export default async function RequestsPage() {
                     </p>
                   )}
                 </div>
-                <StatusBadge status={hw.status} />
+                <div className="flex items-center gap-3">
+                  {isReviewer && (
+                    <HolidayWorkActions requestId={hw.id} currentStatus={hw.status} />
+                  )}
+                  <StatusBadge status={hw.status} />
+                </div>
               </div>
             ))}
           </div>

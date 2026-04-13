@@ -1,9 +1,11 @@
 import { getCurrentUser } from "@/lib/auth/helpers";
 import { createClient } from "@/lib/supabase/server";
 import { DAYS_OF_WEEK } from "@/lib/constants";
-import { formatTime, formatDate } from "@/lib/utils";
+import { formatTime, formatDate, cn } from "@/lib/utils";
 import type { Schedule } from "@/types/database";
+import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
 import Link from "next/link";
+import { startOfWeek, addDays, format, isSameDay, parseISO } from "date-fns";
 
 export default async function SchedulePage() {
   const user = await getCurrentUser();
@@ -39,10 +41,132 @@ export default async function SchedulePage() {
     .order("start_date", { ascending: true })
     .limit(10);
 
+  // This week's data
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekDates = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i));
+  const weekStartStr = format(weekDates[0], "yyyy-MM-dd");
+  const weekEndStr = format(weekDates[4], "yyyy-MM-dd");
+
+  // Adjustments for this week
+  const { data: weekAdjustments } = await supabase
+    .from("schedule_adjustments")
+    .select("*")
+    .eq("employee_id", user.id)
+    .eq("status", "approved")
+    .gte("requested_date", weekStartStr)
+    .lte("requested_date", weekEndStr);
+
+  const adjByDate = new Map(
+    (weekAdjustments ?? []).map((a) => [a.requested_date, a])
+  );
+
+  // Leaves covering this week
+  const { data: weekLeaves } = await supabase
+    .from("leave_requests")
+    .select("*")
+    .eq("employee_id", user.id)
+    .eq("status", "approved")
+    .lte("start_date", weekEndStr)
+    .gte("end_date", weekStartStr);
+
+  // Holiday work for this week
+  const { data: weekHolidayWork } = await supabase
+    .from("holiday_work_requests")
+    .select("*")
+    .eq("employee_id", user.id)
+    .eq("status", "approved")
+    .gte("holiday_date", weekStartStr)
+    .lte("holiday_date", weekEndStr);
+
+  const hwByDate = new Map(
+    (weekHolidayWork ?? []).map((hw) => [hw.holiday_date, hw])
+  );
+
+  // Holidays
+  const { data: holidays } = await supabase
+    .from("holidays")
+    .select("*");
+
   const scheduleByDay = new Map<number, Schedule>();
   (schedules ?? []).forEach((s) => {
     scheduleByDay.set(s.day_of_week, s as Schedule);
   });
+
+  // Build holiday lookup for this week
+  const holidayByDate = new Map<string, string>();
+  for (const h of holidays ?? []) {
+    if (h.country !== user.holiday_country) continue;
+    const hDate = parseISO(h.date);
+    for (const wd of weekDates) {
+      const matches = h.is_recurring
+        ? hDate.getMonth() === wd.getMonth() && hDate.getDate() === wd.getDate()
+        : isSameDay(hDate, wd);
+      if (matches) {
+        holidayByDate.set(format(wd, "yyyy-MM-dd"), h.name);
+      }
+    }
+  }
+
+  // Build this week's schedule
+  function getWeekDayInfo(date: Date, dayIndex: number) {
+    const dateStr = format(date, "yyyy-MM-dd");
+    const schedule = scheduleByDay.get(dayIndex);
+
+    // Holiday
+    const holidayName = holidayByDate.get(dateStr);
+    if (holidayName) {
+      const hw = hwByDate.get(dateStr);
+      if (hw) {
+        return {
+          type: "holiday_work" as const,
+          time: `${formatTime(hw.start_time)} - ${formatTime(hw.end_time)}`,
+          location: hw.work_location,
+          note: `Working on ${holidayName}`,
+        };
+      }
+      return { type: "holiday" as const, label: holidayName };
+    }
+
+    // Leave
+    for (const l of weekLeaves ?? []) {
+      if (dateStr >= l.start_date && dateStr <= l.end_date) {
+        const typeLabel = l.leave_type.charAt(0).toUpperCase() + l.leave_type.slice(1);
+        return { type: "leave" as const, label: `${typeLabel} Leave` };
+      }
+    }
+
+    // Adjustment
+    const adj = adjByDate.get(dateStr);
+    if (schedule?.is_rest_day && !adj) {
+      return { type: "rest" as const };
+    }
+
+    if (adj) {
+      return {
+        type: "adjusted" as const,
+        time: `${formatTime(adj.requested_start_time)} - ${formatTime(adj.requested_end_time)}`,
+        location: adj.requested_work_location ?? schedule?.work_location ?? null,
+      };
+    }
+
+    // Base schedule
+    if (schedule && !schedule.is_rest_day) {
+      return {
+        type: "schedule" as const,
+        time: `${formatTime(schedule.start_time)} - ${formatTime(schedule.end_time)}`,
+        location: schedule.work_location,
+      };
+    }
+
+    if (schedule?.is_rest_day) {
+      return { type: "rest" as const };
+    }
+
+    return { type: "none" as const };
+  }
+
+  const isToday = (date: Date) => isSameDay(date, now);
 
   const leaveTypeLabels: Record<string, string> = {
     annual: "Annual Leave",
@@ -111,6 +235,125 @@ export default async function SchedulePage() {
                 ) : (
                   <p className="mt-2 text-sm text-gray-400">Not set</p>
                 )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* This week's schedule */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+          This Week&apos;s Schedule
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {weekDates.map((date, i) => {
+            const info = getWeekDayInfo(date, i);
+            const todayHighlight = isToday(date);
+
+            return (
+              <div
+                key={i}
+                className={cn(
+                  "rounded-xl border p-4",
+                  todayHighlight
+                    ? "border-blue-400 bg-blue-50 ring-1 ring-blue-200"
+                    : "border-gray-200 bg-white"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    {format(date, "EEEE")}
+                  </h3>
+                  {todayHighlight && (
+                    <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-medium text-white">
+                      Today
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">{format(date, "MMM d")}</p>
+
+                <div className="mt-3">
+                  {info.type === "schedule" && (
+                    <div className="space-y-1">
+                      {"location" in info && info.location && (
+                        <span
+                          className={cn(
+                            "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
+                            info.location === "office"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-green-100 text-green-700"
+                          )}
+                        >
+                          {info.location === "office" ? "Office" : "Online"}
+                        </span>
+                      )}
+                      <p className="text-sm text-gray-700">{"time" in info && info.time}</p>
+                    </div>
+                  )}
+
+                  {info.type === "adjusted" && (
+                    <div className="space-y-1">
+                      {"location" in info && info.location && (
+                        <span
+                          className={cn(
+                            "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
+                            info.location === "office"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-green-100 text-green-700"
+                          )}
+                        >
+                          {info.location === "office" ? "Office" : "Online"}
+                        </span>
+                      )}
+                      <p className="text-sm text-gray-700">{"time" in info && info.time}</p>
+                      <span className="inline-block rounded bg-cyan-100 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700">
+                        Adjusted
+                      </span>
+                    </div>
+                  )}
+
+                  {info.type === "holiday_work" && (
+                    <div className="space-y-1">
+                      {"location" in info && info.location && (
+                        <span
+                          className={cn(
+                            "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
+                            info.location === "office"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-green-100 text-green-700"
+                          )}
+                        >
+                          {info.location === "office" ? "Office" : "Online"}
+                        </span>
+                      )}
+                      <p className="text-sm text-gray-700">{"time" in info && info.time}</p>
+                      <span className="inline-block rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-medium text-teal-700">
+                        {"note" in info && info.note}
+                      </span>
+                    </div>
+                  )}
+
+                  {info.type === "holiday" && (
+                    <span className="inline-block rounded bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700">
+                      {"label" in info && info.label}
+                    </span>
+                  )}
+
+                  {info.type === "leave" && (
+                    <span className="inline-block rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
+                      {"label" in info && info.label}
+                    </span>
+                  )}
+
+                  {info.type === "rest" && (
+                    <p className="text-sm text-gray-400">Rest Day</p>
+                  )}
+
+                  {info.type === "none" && (
+                    <p className="text-sm text-gray-300">&mdash;</p>
+                  )}
+                </div>
               </div>
             );
           })}

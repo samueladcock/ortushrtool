@@ -192,7 +192,7 @@ export function WeeklyScheduleTable({ users, schedules, holidays }: Props) {
       return {
         type: "adjusted" as const,
         label: `${formatTime(adj.requested_start_time)} - ${formatTime(adj.requested_end_time)}`,
-        location: null,
+        location: adj.requested_work_location ?? (schedule?.work_location || null),
       };
     }
 
@@ -365,6 +365,16 @@ export function WeeklyScheduleTable({ users, schedules, holidays }: Props) {
                           <span className="inline-block rounded bg-cyan-100 px-2 py-1 text-xs font-medium text-cyan-700">
                             {cell.label}
                           </span>
+                          {"location" in cell && cell.location && (
+                            <span className={cn(
+                              "mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium",
+                              cell.location === "online"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-blue-100 text-blue-700"
+                            )}>
+                              {cell.location === "online" ? "Online" : "Office"}
+                            </span>
+                          )}
                           <div className="mt-0.5 text-[10px] text-cyan-500">Adjusted</div>
                         </div>
                       )}

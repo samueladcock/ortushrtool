@@ -3,9 +3,14 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Check, X } from "lucide-react";
+import { Check, X, RotateCcw } from "lucide-react";
 
-export function LeaveActions({ leaveId }: { leaveId: string }) {
+interface Props {
+  leaveId: string;
+  currentStatus?: "approved" | "rejected";
+}
+
+export function LeaveActions({ leaveId, currentStatus }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
@@ -25,7 +30,6 @@ export function LeaveActions({ leaveId }: { leaveId: string }) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // Update leave status
     await supabase
       .from("leave_requests")
       .update({
@@ -36,7 +40,6 @@ export function LeaveActions({ leaveId }: { leaveId: string }) {
       })
       .eq("id", leaveId);
 
-    // Send email to employee AND manager
     try {
       await fetch("/api/notifications/leave-decision", {
         method: "POST",
@@ -78,6 +81,32 @@ export function LeaveActions({ leaveId }: { leaveId: string }) {
             Cancel
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (currentStatus) {
+    return (
+      <div className="flex gap-2">
+        {currentStatus === "approved" ? (
+          <button
+            onClick={() => handleAction("rejected")}
+            disabled={loading}
+            className="flex items-center gap-1 rounded-lg border border-red-300 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            <RotateCcw size={14} />
+            Change to Reject
+          </button>
+        ) : (
+          <button
+            onClick={() => handleAction("approved")}
+            disabled={loading}
+            className="flex items-center gap-1 rounded-lg border border-green-300 px-3 py-1.5 text-xs font-medium text-green-600 hover:bg-green-50 disabled:opacity-50"
+          >
+            <RotateCcw size={14} />
+            Change to Approve
+          </button>
+        )}
       </div>
     );
   }

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Plus, X } from "lucide-react";
+import type { ScheduleAdjustmentType, WorkLocation } from "@/types/database";
 
 export default function ScheduleAdjustmentPage() {
   const router = useRouter();
@@ -13,8 +14,10 @@ export default function ScheduleAdjustmentPage() {
   const [isPermanent, setIsPermanent] = useState(false);
 
   const [dates, setDates] = useState<string[]>([""]);
+  const [adjustmentType, setAdjustmentType] = useState<ScheduleAdjustmentType>("time");
   const [requestedStart, setRequestedStart] = useState("");
   const [requestedEnd, setRequestedEnd] = useState("");
+  const [requestedLocation, setRequestedLocation] = useState<WorkLocation>("office");
   const [reason, setReason] = useState("");
 
   const addDate = () => setDates([...dates, ""]);
@@ -22,6 +25,9 @@ export default function ScheduleAdjustmentPage() {
     setDates(dates.filter((_, i) => i !== idx));
   const updateDate = (idx: number, value: string) =>
     setDates(dates.map((d, i) => (i === idx ? value : d)));
+
+  const showTimeFields = adjustmentType === "time" || adjustmentType === "both";
+  const showLocationField = adjustmentType === "location" || adjustmentType === "both";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +37,12 @@ export default function ScheduleAdjustmentPage() {
     const validDates = dates.filter((d) => d);
     if (!isPermanent && validDates.length === 0) {
       setError("Please select at least one date.");
+      setLoading(false);
+      return;
+    }
+
+    if (showTimeFields && (!requestedStart || !requestedEnd)) {
+      setError("Please set start and end times.");
       setLoading(false);
       return;
     }
@@ -48,11 +60,9 @@ export default function ScheduleAdjustmentPage() {
 
     if (isPermanent) {
       // Permanent change: update the base schedule for all weekdays
-      // We need to know which days to update — use all Mon-Fri
       const today = new Date().toISOString().split("T")[0];
 
       for (let dayIdx = 0; dayIdx < 5; dayIdx++) {
-        // Get current schedule for this day
         const { data: existing } = await supabase
           .from("schedules")
           .select("id")
@@ -64,28 +74,24 @@ export default function ScheduleAdjustmentPage() {
           .maybeSingle();
 
         if (existing) {
-          // End the old schedule
           await supabase
             .from("schedules")
             .update({ effective_until: today })
             .eq("id", existing.id);
         }
-
-        // Create new schedule entry — this needs HR approval
-        // For now, create a schedule adjustment for a far future date
-        // to signal it's a permanent request
       }
 
-      // Create a single adjustment request marked as permanent
       const { error: insertError } = await supabase
         .from("schedule_adjustments")
         .insert({
           employee_id: user.id,
-          requested_date: "9999-12-31", // Sentinel for permanent
+          requested_date: "9999-12-31",
+          adjustment_type: adjustmentType,
           original_start_time: "00:00",
           original_end_time: "00:00",
-          requested_start_time: requestedStart,
-          requested_end_time: requestedEnd,
+          requested_start_time: showTimeFields ? requestedStart : "00:00",
+          requested_end_time: showTimeFields ? requestedEnd : "00:00",
+          requested_work_location: showLocationField ? requestedLocation : null,
           reason: `[PERMANENT CHANGE] ${reason}`,
         });
 
@@ -118,10 +124,12 @@ export default function ScheduleAdjustmentPage() {
           .insert({
             employee_id: user.id,
             requested_date: date,
+            adjustment_type: adjustmentType,
             original_start_time: originalStart,
             original_end_time: originalEnd,
-            requested_start_time: requestedStart,
-            requested_end_time: requestedEnd,
+            requested_start_time: showTimeFields ? requestedStart : originalStart,
+            requested_end_time: showTimeFields ? requestedEnd : originalEnd,
+            requested_work_location: showLocationField ? requestedLocation : null,
             reason,
           });
 
@@ -143,7 +151,11 @@ export default function ScheduleAdjustmentPage() {
             ? "Permanent change"
             : validDates.join(", "),
           original_time: "Current schedule",
-          requested_time: `${requestedStart} - ${requestedEnd}`,
+          requested_time: showTimeFields
+            ? `${requestedStart} - ${requestedEnd}`
+            : "No time change",
+          requested_location: showLocationField ? requestedLocation : null,
+          adjustment_type: adjustmentType,
           reason: isPermanent ? `[PERMANENT] ${reason}` : reason,
         }),
       });
@@ -169,7 +181,7 @@ export default function ScheduleAdjustmentPage() {
           Request Schedule Adjustment
         </h1>
         <p className="text-gray-600">
-          Request a change to your working hours.
+          Request a change to your working hours or location.
         </p>
       </div>
 
@@ -192,7 +204,7 @@ export default function ScheduleAdjustmentPage() {
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
-                name="adjustment_type"
+                name="duration_type"
                 checked={!isPermanent}
                 onChange={() => setIsPermanent(false)}
                 className="h-4 w-4 text-blue-600"
@@ -202,7 +214,7 @@ export default function ScheduleAdjustmentPage() {
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
-                name="adjustment_type"
+                name="duration_type"
                 checked={isPermanent}
                 onChange={() => setIsPermanent(true)}
                 className="h-4 w-4 text-blue-600"
@@ -210,6 +222,45 @@ export default function ScheduleAdjustmentPage() {
               <span className="text-sm text-gray-700">
                 Permanently change my schedule
               </span>
+            </label>
+          </div>
+        </div>
+
+        {/* What are you changing? */}
+        <div className="rounded-lg border border-gray-200 p-4">
+          <p className="mb-3 text-sm font-medium text-gray-700">
+            What would you like to change?
+          </p>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="adjustment_type"
+                checked={adjustmentType === "time"}
+                onChange={() => setAdjustmentType("time")}
+                className="h-4 w-4 text-blue-600"
+              />
+              <span className="text-sm text-gray-700">Time</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="adjustment_type"
+                checked={adjustmentType === "location"}
+                onChange={() => setAdjustmentType("location")}
+                className="h-4 w-4 text-blue-600"
+              />
+              <span className="text-sm text-gray-700">Location</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="adjustment_type"
+                checked={adjustmentType === "both"}
+                onChange={() => setAdjustmentType("both")}
+                className="h-4 w-4 text-blue-600"
+              />
+              <span className="text-sm text-gray-700">Both</span>
             </label>
           </div>
         </div>
@@ -258,37 +309,71 @@ export default function ScheduleAdjustmentPage() {
           <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
             <p className="text-sm text-amber-800">
               This will permanently change your base schedule once approved by
-              your manager. Your new hours will apply to all future working days.
+              your manager. Your new {adjustmentType === "time" ? "hours" : adjustmentType === "location" ? "work location" : "hours and work location"} will apply to all future working days.
             </p>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              What time would you like to start?
-            </label>
-            <input
-              type="time"
-              required
-              value={requestedStart}
-              onChange={(e) => setRequestedStart(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+        {/* Time fields */}
+        {showTimeFields && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                What time would you like to start?
+              </label>
+              <input
+                type="time"
+                required
+                value={requestedStart}
+                onChange={(e) => setRequestedStart(e.target.value)}
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                What time would you like to finish?
+              </label>
+              <input
+                type="time"
+                required
+                value={requestedEnd}
+                onChange={(e) => setRequestedEnd(e.target.value)}
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
           </div>
+        )}
+
+        {/* Location field */}
+        {showLocationField && (
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              What time would you like to finish?
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Where would you like to work?
             </label>
-            <input
-              type="time"
-              required
-              value={requestedEnd}
-              onChange={(e) => setRequestedEnd(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="work_location"
+                  checked={requestedLocation === "office"}
+                  onChange={() => setRequestedLocation("office")}
+                  className="h-4 w-4 text-blue-600"
+                />
+                <span className="text-sm text-gray-700">Office</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="work_location"
+                  checked={requestedLocation === "online"}
+                  onChange={() => setRequestedLocation("online")}
+                  className="h-4 w-4 text-blue-600"
+                />
+                <span className="text-sm text-gray-700">Online</span>
+              </label>
+            </div>
           </div>
-        </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700">

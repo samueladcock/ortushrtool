@@ -84,6 +84,58 @@ export async function GET(request: Request) {
     const today = format(new Date(), "yyyy-MM-dd");
     const isSyncingToday = syncDate === today;
 
+    // Re-evaluate any past attendance logs stuck as "working"
+    const { data: staleWorking } = await supabase
+      .from("attendance_logs")
+      .select("id, clock_in, clock_out, scheduled_start, scheduled_end, raw_response")
+      .eq("status", "working")
+      .lt("date", today);
+
+    for (const log of staleWorking ?? []) {
+      let newStatus = "on_time";
+      let lateMin: number | null = null;
+      let earlyMin: number | null = null;
+
+      if (!log.clock_in && !log.clock_out) {
+        newStatus = "absent";
+      } else {
+        if (log.clock_in && log.raw_response) {
+          const raw = log.raw_response as Record<string, unknown>;
+          const arrivedRaw = raw.arrived as string | undefined;
+          if (arrivedRaw) {
+            const scheduledStartMin = timeToMinutes(log.scheduled_start.slice(0, 5));
+            const actualStartMin = extractTimeMinutes(arrivedRaw);
+            if (actualStartMin > scheduledStartMin + lateTolerance) {
+              lateMin = actualStartMin - scheduledStartMin;
+              newStatus = "late_arrival";
+            }
+          }
+        }
+
+        if (log.clock_out && log.raw_response) {
+          const raw = log.raw_response as Record<string, unknown>;
+          const leftRaw = raw.left as string | undefined;
+          if (leftRaw) {
+            const scheduledEndMin = timeToMinutes(log.scheduled_end.slice(0, 5));
+            const actualEndMin = extractTimeMinutes(leftRaw);
+            if (actualEndMin < scheduledEndMin - earlyTolerance) {
+              earlyMin = scheduledEndMin - actualEndMin;
+              newStatus = newStatus === "late_arrival" ? "late_and_early" : "early_departure";
+            }
+          }
+        }
+      }
+
+      await supabase
+        .from("attendance_logs")
+        .update({
+          status: newStatus,
+          late_minutes: lateMin,
+          early_departure_minutes: earlyMin,
+        })
+        .eq("id", log.id);
+    }
+
     let synced = 0;
     let skipped = 0;
 
