@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { startOfWeek, endOfWeek, addDays, format, parseISO } from "date-fns";
 import { WhosOut } from "@/components/dashboard/whos-out";
+import { LEAVE_TYPE_LABELS, UNIVERSAL_LEAVE_TYPES, LEAVE_TYPES } from "@/lib/constants";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -35,6 +36,8 @@ export default async function DashboardPage() {
     myPendingLeaves,
     whosOutThisWeek,
     upcomingHolidays,
+    myActivatedLeaveTypes,
+    myAssignedPlans,
   ] = await Promise.all([
     // Pending schedule adjustments
     isReviewer
@@ -84,13 +87,13 @@ export default async function DashboardPage() {
           .eq("employee_id", user.id)
           .eq("acknowledged", false),
 
-    // My approved leaves this year (for balance)
+    // My approved leaves (past 2 years to cover any renewal date)
     supabase
       .from("leave_requests")
-      .select("leave_type, start_date, end_date")
+      .select("leave_type, start_date, end_date, leave_duration")
       .eq("employee_id", user.id)
       .eq("status", "approved")
-      .gte("start_date", yearStart),
+      .gte("start_date", `${now.getFullYear() - 1}-01-01`),
 
     // My upcoming approved leaves
     supabase
@@ -123,6 +126,18 @@ export default async function DashboardPage() {
     supabase
       .from("holidays")
       .select("name, date, country, is_recurring"),
+
+    // My activated special leave types
+    supabase
+      .from("employee_leave_types")
+      .select("leave_type")
+      .eq("employee_id", user.id),
+
+    // My assigned leave plans
+    supabase
+      .from("employee_leave_plans")
+      .select("plan_id")
+      .eq("employee_id", user.id),
   ]);
 
   // Fetch direct report IDs for "My Direct Reports" filter
@@ -171,26 +186,65 @@ export default async function DashboardPage() {
     return count;
   }
 
-  const leaveUsed: Record<string, number> = {
-    annual: 0,
-    sick: 0,
-    personal: 0,
-    unpaid: 0,
-    other: 0,
-  };
+  // Count used days per type, respecting per-type renewal dates
+  const leaveUsed: Record<string, number> = {};
 
   for (const l of myLeavesThisYear.data ?? []) {
-    const days = countWeekdays(l.start_date, l.end_date);
-    leaveUsed[l.leave_type] = (leaveUsed[l.leave_type] ?? 0) + days;
+    const renewalStart = leaveTypeRenewalStart[l.leave_type] ?? yearStart;
+    // Only count leaves that started on or after the renewal date
+    if (l.start_date >= renewalStart) {
+      const days = l.leave_duration === "half_day" ? 0.5 : countWeekdays(l.start_date, l.end_date);
+      leaveUsed[l.leave_type] = (leaveUsed[l.leave_type] ?? 0) + days;
+    }
   }
 
-  const leaveTypeLabels: Record<string, string> = {
-    annual: "Annual",
-    sick: "Sick",
-    personal: "Personal",
-    unpaid: "Unpaid",
-    other: "Other",
-  };
+  const leaveTypeLabels = LEAVE_TYPE_LABELS;
+  const myActivatedTypes = (myActivatedLeaveTypes.data ?? []).map((d) => d.leave_type);
+  const myLeaveTypes = [...UNIVERSAL_LEAVE_TYPES, ...myActivatedTypes];
+
+  // Fetch allocations from all assigned plans and sum per leave type
+  const assignedPlanIds = (myAssignedPlans.data ?? []).map((p) => p.plan_id);
+  const hasPlan = assignedPlanIds.length > 0;
+
+  const planAllocations: Record<string, number> = {};
+  // Track the renewal start date per leave type (earliest renewal across plans)
+  const leaveTypeRenewalStart: Record<string, string> = {};
+
+  if (hasPlan) {
+    // Fetch plans with renewal info + their allocations
+    const [{ data: assignedPlanDetails }, { data: allAllocations }] = await Promise.all([
+      supabase
+        .from("leave_plans")
+        .select("id, renewal_month, renewal_day")
+        .in("id", assignedPlanIds),
+      supabase
+        .from("leave_plan_allocations")
+        .select("plan_id, leave_type, days_per_year")
+        .in("plan_id", assignedPlanIds),
+    ]);
+
+    // Build plan renewal date map
+    const planRenewalStart = new Map<string, string>();
+    for (const p of assignedPlanDetails ?? []) {
+      const month = p.renewal_month ?? 1;
+      const day = p.renewal_day ?? 1;
+      // Determine the most recent renewal date (this year or last year)
+      const thisYearRenewal = `${now.getFullYear()}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const lastYearRenewal = `${now.getFullYear() - 1}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const renewalStart = thisYearRenewal <= today ? thisYearRenewal : lastYearRenewal;
+      planRenewalStart.set(p.id, renewalStart);
+    }
+
+    for (const a of allAllocations ?? []) {
+      planAllocations[a.leave_type] = (planAllocations[a.leave_type] ?? 0) + a.days_per_year;
+
+      // Track the earliest renewal start for this leave type
+      const planRenewal = planRenewalStart.get(a.plan_id) ?? yearStart;
+      if (!leaveTypeRenewalStart[a.leave_type] || planRenewal < leaveTypeRenewalStart[a.leave_type]) {
+        leaveTypeRenewalStart[a.leave_type] = planRenewal;
+      }
+    }
+  }
 
   // --- Who's Out ---
   const whosOutLeaves = (whosOutThisWeek.data ?? []).map((l) => ({
@@ -318,20 +372,45 @@ export default async function DashboardPage() {
           {/* Leave Balance */}
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-900 mb-3">
-              Leave Used This Year
+              {hasPlan ? "Leave Balance" : "Leave Used This Year"}
             </h3>
+            {!hasPlan && (
+              <p className="mb-3 text-xs text-amber-600">No leave plan assigned. Contact HR to set up your plan.</p>
+            )}
             <div className="grid grid-cols-2 gap-3">
-              {Object.entries(leaveTypeLabels)
-                .filter(([key]) => key !== "other" || leaveUsed.other > 0)
-                .map(([key, label]) => (
+              {myLeaveTypes.map((key) => {
+                const label = leaveTypeLabels[key] ?? key;
+                const used = leaveUsed[key] ?? 0;
+                const allocated = planAllocations[key] ?? 0;
+                const remaining = allocated - used;
+
+                return (
                   <div key={key} className="rounded-lg bg-gray-50 p-3">
                     <p className="text-xs text-gray-500">{label}</p>
-                    <p className="mt-1 text-xl font-bold text-gray-900">
-                      {leaveUsed[key] ?? 0}
-                      <span className="ml-1 text-xs font-normal text-gray-400">day{(leaveUsed[key] ?? 0) !== 1 ? "s" : ""}</span>
-                    </p>
+                    {hasPlan ? (
+                      <>
+                        <p className={`mt-1 text-xl font-bold ${remaining <= 0 && allocated > 0 ? "text-red-600" : "text-gray-900"}`}>
+                          {remaining}
+                          <span className="ml-1 text-xs font-normal text-gray-400">
+                            / {allocated}
+                          </span>
+                        </p>
+                        {used > 0 && (
+                          <p className="text-[10px] text-gray-400">{used} used</p>
+                        )}
+                        {remaining < 0 && (
+                          <p className="text-[10px] font-medium text-red-500">{Math.abs(remaining)} unpaid</p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-1 text-xl font-bold text-gray-900">
+                        {used}
+                        <span className="ml-1 text-xs font-normal text-gray-400">day{used !== 1 ? "s" : ""}</span>
+                      </p>
+                    )}
                   </div>
-                ))}
+                );
+              })}
             </div>
           </div>
 

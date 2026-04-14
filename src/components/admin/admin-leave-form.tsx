@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { LEAVE_TYPES, UNIVERSAL_LEAVE_TYPES } from "@/lib/constants";
 
 export function AdminLeaveForm({ userId }: { userId: string }) {
   const router = useRouter();
@@ -13,14 +14,21 @@ export function AdminLeaveForm({ userId }: { userId: string }) {
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [reason, setReason] = useState("");
   const [viewMonth, setViewMonth] = useState(() => new Date());
+  const [availableTypes, setAvailableTypes] = useState<string[]>(UNIVERSAL_LEAVE_TYPES);
 
-  const leaveTypes = [
-    { value: "annual", label: "Annual Leave" },
-    { value: "sick", label: "Sick Leave" },
-    { value: "personal", label: "Personal Leave" },
-    { value: "unpaid", label: "Unpaid Leave" },
-    { value: "other", label: "Other" },
-  ];
+  // Load the employee's activated leave types
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("employee_leave_types")
+        .select("leave_type")
+        .eq("employee_id", userId);
+      const activated = (data ?? []).map((d) => d.leave_type);
+      setAvailableTypes([...UNIVERSAL_LEAVE_TYPES, ...activated]);
+    }
+    load();
+  }, [userId]);
 
   // Build calendar grid for the current view month
   const calendarDays = useMemo(() => {
@@ -177,9 +185,9 @@ export function AdminLeaveForm({ userId }: { userId: string }) {
           onChange={(e) => setLeaveType(e.target.value)}
           className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
         >
-          {leaveTypes.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
+          {availableTypes.map((key) => (
+            <option key={key} value={key}>
+              {LEAVE_TYPES[key as keyof typeof LEAVE_TYPES]?.label ?? key}
             </option>
           ))}
         </select>

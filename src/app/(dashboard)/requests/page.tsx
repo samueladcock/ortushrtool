@@ -1,10 +1,12 @@
 import { getCurrentUser } from "@/lib/auth/helpers";
 import { createClient } from "@/lib/supabase/server";
 import { hasRole, formatDate, formatTime } from "@/lib/utils";
+import { LEAVE_TYPE_LABELS } from "@/lib/constants";
 import { AdjustmentActions } from "@/components/adjustments/adjustment-actions";
 import { LeaveActions } from "@/components/leave/leave-actions";
 import { HolidayWorkActions } from "@/components/holiday-work/holiday-work-actions";
 import { CancelRequest } from "@/components/shared/cancel-request";
+import { BuzzManager } from "@/components/shared/buzz-manager";
 import Link from "next/link";
 import { ArrowRightLeft, CalendarOff, CalendarCheck, AlertTriangle } from "lucide-react";
 import { startOfWeek, addDays, format } from "date-fns";
@@ -141,13 +143,7 @@ export default async function RequestsPage() {
     }
   }
 
-  const leaveTypeLabels: Record<string, string> = {
-    annual: "Annual Leave",
-    sick: "Sick Leave",
-    personal: "Personal Leave",
-    unpaid: "Unpaid Leave",
-    other: "Other",
-  };
+  const leaveTypeLabels = LEAVE_TYPE_LABELS;
 
   const actionButtons = (
     <div className="flex flex-wrap gap-3">
@@ -248,7 +244,10 @@ export default async function RequestsPage() {
                     <div className="flex flex-col items-end gap-2">
                       {isReviewer && <AdjustmentActions adjustmentId={adj.id} />}
                       {!isReviewer && (
-                        <CancelRequest requestId={adj.id} table="schedule_adjustments" />
+                        <>
+                          <BuzzManager requestId={adj.id} requestType="schedule_adjustment" />
+                          <CancelRequest requestId={adj.id} table="schedule_adjustments" />
+                        </>
                       )}
                     </div>
                   </div>
@@ -283,17 +282,36 @@ export default async function RequestsPage() {
                       </span>
                     </div>
                     <p className="text-sm text-gray-700">
-                      <span className="font-medium">From:</span>{" "}
-                      {formatDate(leave.start_date)} &mdash;{" "}
-                      <span className="font-medium">To:</span>{" "}
-                      {formatDate(leave.end_date)}
+                      {leave.leave_duration === "half_day" ? (
+                        <>
+                          <span className="font-medium">Date:</span> {formatDate(leave.start_date)}
+                          <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700">
+                            Half day ({leave.half_day_period === "am" ? "AM" : "PM"})
+                          </span>
+                          {leave.half_day_start_time && leave.half_day_end_time && (
+                            <span className="ml-1 text-xs text-gray-500">
+                              {formatTime(leave.half_day_start_time)} - {formatTime(leave.half_day_end_time)}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-medium">From:</span>{" "}
+                          {formatDate(leave.start_date)} &mdash;{" "}
+                          <span className="font-medium">To:</span>{" "}
+                          {formatDate(leave.end_date)}
+                        </>
+                      )}
                     </p>
                     <p className="text-sm text-gray-600">{leave.reason}</p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     {isReviewer && <LeaveActions leaveId={leave.id} />}
                     {!isReviewer && (
-                      <CancelRequest requestId={leave.id} table="leave_requests" />
+                      <>
+                        <BuzzManager requestId={leave.id} requestType="leave" />
+                        <CancelRequest requestId={leave.id} table="leave_requests" />
+                      </>
                     )}
                   </div>
                 </div>
@@ -345,7 +363,10 @@ export default async function RequestsPage() {
                   <div className="flex flex-col items-end gap-2">
                     {isReviewer && <HolidayWorkActions requestId={hw.id} />}
                     {!isReviewer && (
-                      <CancelRequest requestId={hw.id} table="holiday_work_requests" />
+                      <>
+                        <BuzzManager requestId={hw.id} requestType="holiday_work" />
+                        <CancelRequest requestId={hw.id} table="holiday_work_requests" />
+                      </>
                     )}
                   </div>
                 </div>
@@ -410,8 +431,14 @@ export default async function RequestsPage() {
                     )}
                   </div>
                   <p className="text-sm text-gray-700">
-                    {formatDate(leave.start_date)} &mdash;{" "}
-                    {formatDate(leave.end_date)}
+                    {formatDate(leave.start_date)}
+                    {leave.leave_duration === "half_day" ? (
+                      <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700">
+                        Half day ({leave.half_day_period === "am" ? "AM" : "PM"})
+                      </span>
+                    ) : (
+                      <> &mdash; {formatDate(leave.end_date)}</>
+                    )}
                   </p>
                   {leave.reviewer_notes && (
                     <p className="text-sm text-gray-500 italic">

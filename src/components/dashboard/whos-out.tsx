@@ -32,13 +32,8 @@ interface Props {
 
 type Filter = "everyone" | "my_team" | "direct_reports";
 
-const leaveTypeLabels: Record<string, string> = {
-  annual: "Annual",
-  sick: "Sick",
-  personal: "Personal",
-  unpaid: "Unpaid",
-  other: "Other",
-};
+import { LEAVE_TYPE_LABELS } from "@/lib/constants";
+const leaveTypeLabels = LEAVE_TYPE_LABELS;
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");

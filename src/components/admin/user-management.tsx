@@ -4,7 +4,8 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Pencil, Save, X, Calendar, Trash2, Plus, KeyRound } from "lucide-react";
+import { Pencil, Save, X, Calendar, Trash2, Plus, KeyRound, Palmtree } from "lucide-react";
+import { EmployeeLeaveTypesModal } from "./employee-leave-types";
 import type { User, UserRole, HolidayCountry } from "@/types/database";
 import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
 
@@ -58,6 +59,7 @@ export function UserManagement({
 
   const [deleting, setDeleting] = useState<string | null>(null);
   const [resettingPassword, setResettingPassword] = useState<string | null>(null);
+  const [leaveTypesUser, setLeaveTypesUser] = useState<User | null>(null);
 
   const deleteUser = async (user: User) => {
     if (!confirm(`Permanently delete ${user.full_name || user.email}? This will remove all their data (schedules, attendance, flags, etc.) and cannot be undone.`)) {
@@ -325,6 +327,13 @@ export function UserManagement({
                               <Calendar size={16} />
                             </Link>
                             <button
+                              onClick={() => setLeaveTypesUser(user)}
+                              className="rounded p-1 text-green-500 hover:bg-green-50 hover:text-green-700"
+                              title="Manage leave types"
+                            >
+                              <Palmtree size={16} />
+                            </button>
+                            <button
                               onClick={() => resetPassword(user)}
                               disabled={resettingPassword === user.id}
                               className="rounded p-1 text-amber-500 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50"
@@ -351,6 +360,13 @@ export function UserManagement({
           </table>
         </div>
       </div>
+
+      {leaveTypesUser && (
+        <EmployeeLeaveTypesModal
+          user={leaveTypesUser}
+          onClose={() => setLeaveTypesUser(null)}
+        />
+      )}
 
       {showAddModal && (
         <AddUserModal

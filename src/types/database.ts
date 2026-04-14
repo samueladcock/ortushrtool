@@ -12,7 +12,15 @@ export type AttendanceStatus =
   | "working";
 export type FlagType = "late_arrival" | "early_departure" | "absent";
 export type WorkLocation = "office" | "online";
-export type LeaveType = "annual" | "sick" | "personal" | "unpaid" | "other";
+export type LeaveType =
+  | "anniversary"
+  | "annual"
+  | "birthday"
+  | "cto"
+  | "trinity"
+  | "maternity_paternity"
+  | "solo_parent"
+  | "bereavement";
 export type LeaveStatus = "pending" | "approved" | "rejected";
 export type HolidayCountry = "PH" | "XK" | "IT" | "AE";
 
@@ -128,10 +136,17 @@ export interface NotificationLog {
   status: "sent" | "failed";
 }
 
+export type LeaveDuration = "full_day" | "half_day";
+export type HalfDayPeriod = "am" | "pm";
+
 export interface LeaveRequest {
   id: string;
   employee_id: string;
   leave_type: LeaveType;
+  leave_duration: LeaveDuration;
+  half_day_period: HalfDayPeriod | null;
+  half_day_start_time: string | null;
+  half_day_end_time: string | null;
   start_date: string;
   end_date: string;
   reason: string;
@@ -186,4 +201,36 @@ export interface AttendanceLogWithUser extends AttendanceLog {
 export interface AttendanceFlagWithUser extends AttendanceFlag {
   employee?: User;
   attendance_log?: AttendanceLog | null;
+}
+
+export interface EmployeeLeaveType {
+  id: string;
+  employee_id: string;
+  leave_type: LeaveType;
+  activated_by: string | null;
+  created_at: string;
+}
+
+export interface LeavePlan {
+  id: string;
+  name: string;
+  description: string | null;
+  renewal_month: number;
+  renewal_day: number;
+  created_at: string;
+}
+
+export interface LeavePlanAllocation {
+  id: string;
+  plan_id: string;
+  leave_type: string;
+  days_per_year: number;
+}
+
+export interface EmployeeLeavePlan {
+  id: string;
+  employee_id: string;
+  plan_id: string;
+  assigned_by: string | null;
+  created_at: string;
 }

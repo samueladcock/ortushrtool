@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/helpers";
 import { createClient } from "@/lib/supabase/server";
-import { DAYS_OF_WEEK } from "@/lib/constants";
+import { DAYS_OF_WEEK, LEAVE_TYPE_LABELS } from "@/lib/constants";
 import { formatTime, formatDate, cn } from "@/lib/utils";
 import type { Schedule } from "@/types/database";
 import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
@@ -168,13 +168,7 @@ export default async function SchedulePage() {
 
   const isToday = (date: Date) => isSameDay(date, now);
 
-  const leaveTypeLabels: Record<string, string> = {
-    annual: "Annual Leave",
-    sick: "Sick Leave",
-    personal: "Personal Leave",
-    unpaid: "Unpaid Leave",
-    other: "Other",
-  };
+  const leaveTypeLabels = LEAVE_TYPE_LABELS;
 
   return (
     <div className="space-y-6">
