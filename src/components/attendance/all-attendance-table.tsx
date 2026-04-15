@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { HOLIDAY_COUNTRY_LABELS, type HolidayCountry } from "@/types/database";
 
 interface UserRow {
   id: string;
   full_name: string;
   email: string;
   timezone: string;
+  holiday_country: HolidayCountry;
 }
 
 interface AttendanceLog {
@@ -23,6 +25,18 @@ interface AttendanceLog {
   late_minutes: number | null;
   early_departure_minutes: number | null;
   raw_response: Record<string, unknown> | null;
+}
+
+interface ScheduleRow {
+  employee_id: string;
+  day_of_week: number;
+  work_location: string;
+  is_rest_day: boolean;
+}
+
+interface AdjustmentRow {
+  employee_id: string;
+  requested_work_location: string | null;
 }
 
 function formatDisplayDate(dateStr: string): string {
@@ -55,6 +69,22 @@ function formatDuration(seconds: number | undefined | null): string {
   return `${h}h ${m}m`;
 }
 
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + (minutes || 0);
+}
+
+function getCurrentTimeMinutes(tz: string): number {
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: tz,
+  });
+  return timeToMinutes(timeStr);
+}
+
 const statusStyles: Record<string, string> = {
   on_time: "bg-green-100 text-green-700",
   late_arrival: "bg-yellow-100 text-yellow-700",
@@ -65,6 +95,7 @@ const statusStyles: Record<string, string> = {
   on_leave: "bg-blue-100 text-blue-700",
   holiday: "bg-purple-100 text-purple-700",
   working: "bg-green-50 text-green-600",
+  not_started: "bg-slate-100 text-slate-600",
 };
 
 const statusLabels: Record<string, string> = {
@@ -77,7 +108,103 @@ const statusLabels: Record<string, string> = {
   on_leave: "On Leave",
   holiday: "Holiday",
   working: "Working",
+  not_started: "Shift Yet to Start",
 };
+
+/**
+ * Compute the real-time display status for today's data.
+ * For past dates, returns the stored status as-is.
+ */
+function getDisplayStatus(
+  log: AttendanceLog | undefined,
+  tz: string,
+  isToday: boolean
+): string {
+  if (!log) return "no_data";
+
+  // For past dates, trust the stored status
+  if (!isToday) return log.status;
+
+  const nowMinutes = getCurrentTimeMinutes(tz);
+  const scheduledStart = timeToMinutes(log.scheduled_start?.slice(0, 5) ?? "09:00");
+  const scheduledEnd = timeToMinutes(log.scheduled_end?.slice(0, 5) ?? "18:00");
+
+  // Non-working statuses are always final
+  if (["rest_day", "on_leave", "holiday"].includes(log.status)) {
+    return log.status;
+  }
+
+  // No clock-in yet
+  if (!log.clock_in) {
+    if (nowMinutes < scheduledStart) return "not_started";
+    return "absent";
+  }
+
+  // Has clocked in — check if shift is still ongoing
+  if (nowMinutes < scheduledEnd) {
+    // Shift not over yet: show late_arrival if they were late, otherwise "working"
+    // Do NOT judge early departure yet
+    if (log.status === "late_arrival" || log.status === "late_and_early") {
+      return "late_arrival";
+    }
+    return "working";
+  }
+
+  // Shift is over — return the finalized status from the DB
+  return log.status;
+}
+
+// Dropdown filter component for table headers
+function HeaderFilter({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`inline-flex items-center gap-1 font-medium ${value ? "text-blue-600" : "text-gray-600"}`}
+      >
+        {label}
+        <ChevronDown size={14} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full z-30 mt-1 min-w-[140px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+            <button
+              type="button"
+              onClick={() => { onChange(""); setOpen(false); }}
+              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-50 ${!value ? "font-semibold text-blue-600" : "text-gray-600"}`}
+            >
+              All
+            </button>
+            {options.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => { onChange(opt.value); setOpen(false); }}
+                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-50 ${value === opt.value ? "font-semibold text-blue-600" : "text-gray-600"}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function AllAttendanceTable({ users }: { users: UserRow[] }) {
   const [search, setSearch] = useState("");
@@ -87,22 +214,57 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
+  const [adjustments, setAdjustments] = useState<AdjustmentRow[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchLogs = useCallback(async () => {
+  // Column filters
+  const [countryFilter, setCountryFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [tzFilter, setTzFilter] = useState("");
+
+  const isToday = useMemo(() => {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    return selectedDate === todayStr;
+  }, [selectedDate]);
+
+  const fetchData = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
-    const { data } = await supabase
-      .from("attendance_logs")
-      .select("*")
-      .eq("date", selectedDate);
-    setLogs(data ?? []);
+
+    // Compute day_of_week for the selected date (Monday=0)
+    const dateObj = new Date(selectedDate + "T00:00:00");
+    const dayOfWeek = (dateObj.getDay() + 6) % 7;
+
+    const [logsResult, schedulesResult, adjustmentsResult] = await Promise.all([
+      supabase
+        .from("attendance_logs")
+        .select("*")
+        .eq("date", selectedDate),
+      supabase
+        .from("schedules")
+        .select("employee_id, day_of_week, work_location, is_rest_day")
+        .eq("day_of_week", dayOfWeek)
+        .lte("effective_from", selectedDate)
+        .or(`effective_until.is.null,effective_until.gte.${selectedDate}`),
+      supabase
+        .from("schedule_adjustments")
+        .select("employee_id, requested_work_location")
+        .eq("requested_date", selectedDate)
+        .eq("status", "approved"),
+    ]);
+
+    setLogs(logsResult.data ?? []);
+    setSchedules(schedulesResult.data ?? []);
+    setAdjustments(adjustmentsResult.data ?? []);
     setLoading(false);
   }, [selectedDate]);
 
   useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
+    fetchData();
+  }, [fetchData]);
 
   // Build lookup: employeeId -> log
   const logMap = useMemo(() => {
@@ -113,16 +275,115 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
     return map;
   }, [logs]);
 
-  // Filter users
+  // Build lookup: employeeId -> work_location from base schedule
+  const scheduleLocationMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of schedules) {
+      if (!s.is_rest_day) {
+        map.set(s.employee_id, s.work_location);
+      }
+    }
+    return map;
+  }, [schedules]);
+
+  // Build lookup: employeeId -> adjusted work_location
+  const adjustmentLocationMap = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const a of adjustments) {
+      map.set(a.employee_id, a.requested_work_location);
+    }
+    return map;
+  }, [adjustments]);
+
+  function getLocation(userId: string, status: string): string | null {
+    if (["rest_day", "on_leave", "holiday", "absent", "no_data"].includes(status)) {
+      return null;
+    }
+    const adjLocation = adjustmentLocationMap.get(userId);
+    if (adjLocation) return adjLocation;
+    return scheduleLocationMap.get(userId) ?? null;
+  }
+
+  // Derive unique filter options from the data
+  const countryOptions = useMemo(() => {
+    const countries = new Set(users.map((u) => u.holiday_country));
+    return [...countries].sort().map((c) => ({
+      value: c,
+      label: HOLIDAY_COUNTRY_LABELS[c] ?? c,
+    }));
+  }, [users]);
+
+  const tzOptions = useMemo(() => {
+    const tzs = new Set(users.map((u) => u.timezone || "Asia/Manila"));
+    return [...tzs].sort().map((tz) => ({
+      value: tz,
+      label: getTzLabel(tz),
+    }));
+  }, [users]);
+
+  const locationOptions = [
+    { value: "office", label: "Office" },
+    { value: "online", label: "Online" },
+  ];
+
+  const statusOptions = useMemo(() => {
+    // Collect all display statuses currently visible
+    const statuses = new Set<string>();
+    for (const user of users) {
+      const log = logMap.get(user.id);
+      const tz = user.timezone || "Asia/Manila";
+      const ds = getDisplayStatus(log, tz, isToday);
+      statuses.add(ds);
+    }
+    return [...statuses]
+      .filter((s) => s !== "no_data")
+      .sort()
+      .map((s) => ({
+        value: s,
+        label: statusLabels[s] ?? s,
+      }));
+  }, [users, logMap, isToday]);
+
+  // Filter users by search + column filters
   const filteredUsers = useMemo(() => {
-    if (!search.trim()) return users;
-    const q = search.toLowerCase();
-    return users.filter(
-      (u) =>
-        u.full_name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q)
-    );
-  }, [users, search]);
+    let result = users;
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (u) =>
+          u.full_name.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q)
+      );
+    }
+
+    if (countryFilter) {
+      result = result.filter((u) => u.holiday_country === countryFilter);
+    }
+
+    if (tzFilter) {
+      result = result.filter((u) => (u.timezone || "Asia/Manila") === tzFilter);
+    }
+
+    if (statusFilter) {
+      result = result.filter((u) => {
+        const log = logMap.get(u.id);
+        const tz = u.timezone || "Asia/Manila";
+        return getDisplayStatus(log, tz, isToday) === statusFilter;
+      });
+    }
+
+    if (locationFilter) {
+      result = result.filter((u) => {
+        const log = logMap.get(u.id);
+        const tz = u.timezone || "Asia/Manila";
+        const ds = getDisplayStatus(log, tz, isToday);
+        return getLocation(u.id, ds) === locationFilter;
+      });
+    }
+
+    return result;
+  }, [users, search, countryFilter, tzFilter, statusFilter, locationFilter, logMap, isToday]);
 
   const goDay = (offset: number) => {
     const d = new Date(selectedDate + "T12:00:00");
@@ -132,21 +393,26 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
 
   // Stats
   const stats = useMemo(() => {
-    let onTime = 0, late = 0, early = 0, absent = 0, noData = 0, onLeave = 0, holiday = 0, working = 0;
+    let onTime = 0, late = 0, early = 0, absent = 0, noData = 0, onLeave = 0, holiday = 0, working = 0, notStarted = 0;
     for (const user of filteredUsers) {
       const log = logMap.get(user.id);
-      if (!log) { noData++; continue; }
-      if (log.status === "on_time") onTime++;
-      else if (log.status === "late_arrival") late++;
-      else if (log.status === "early_departure") early++;
-      else if (log.status === "late_and_early") { late++; early++; }
-      else if (log.status === "absent") absent++;
-      else if (log.status === "on_leave") onLeave++;
-      else if (log.status === "holiday") holiday++;
-      else if (log.status === "working") working++;
+      const tz = user.timezone || "Asia/Manila";
+      const displayStatus = getDisplayStatus(log, tz, isToday);
+      if (displayStatus === "on_time") onTime++;
+      else if (displayStatus === "late_arrival") late++;
+      else if (displayStatus === "early_departure") early++;
+      else if (displayStatus === "late_and_early") { late++; early++; }
+      else if (displayStatus === "absent") absent++;
+      else if (displayStatus === "on_leave") onLeave++;
+      else if (displayStatus === "holiday") holiday++;
+      else if (displayStatus === "working") working++;
+      else if (displayStatus === "not_started") notStarted++;
+      else noData++;
     }
-    return { onTime, late, early, absent, noData, onLeave, holiday, working };
-  }, [filteredUsers, logMap]);
+    return { onTime, late, early, absent, noData, onLeave, holiday, working, notStarted };
+  }, [filteredUsers, logMap, isToday]);
+
+  const hasActiveFilters = countryFilter || locationFilter || statusFilter || tzFilter;
 
   return (
     <div className="space-y-4">
@@ -171,6 +437,15 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => { setCountryFilter(""); setLocationFilter(""); setStatusFilter(""); setTzFilter(""); }}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100"
+            >
+              Clear filters
+            </button>
+          )}
           <button
             type="button"
             onClick={() => goDay(-1)}
@@ -217,6 +492,11 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
               {stats.working} Working
             </span>
           )}
+          {stats.notStarted > 0 && (
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600 font-medium">
+              {stats.notStarted} Shift Yet to Start
+            </span>
+          )}
           {stats.onLeave > 0 && (
             <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-700 font-medium">
               {stats.onLeave} On Leave
@@ -244,11 +524,21 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-left">
                 <th className="px-4 py-3 font-medium text-gray-600">Employee</th>
-                <th className="px-4 py-3 font-medium text-gray-600">TZ</th>
-                <th className="px-4 py-3 font-medium text-gray-600">Scheduled</th>
+                <th className="px-4 py-3">
+                  <HeaderFilter label="Country" options={countryOptions} value={countryFilter} onChange={setCountryFilter} />
+                </th>
+                <th className="px-4 py-3">
+                  <HeaderFilter label="Location" options={locationOptions} value={locationFilter} onChange={setLocationFilter} />
+                </th>
+                <th className="px-4 py-3 font-medium text-gray-600">Schedule</th>
+                <th className="px-4 py-3">
+                  <HeaderFilter label="TZ" options={tzOptions} value={tzFilter} onChange={setTzFilter} />
+                </th>
                 <th className="px-4 py-3 font-medium text-gray-600">Clock In</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Clock Out</th>
-                <th className="px-4 py-3 font-medium text-gray-600">Status</th>
+                <th className="px-4 py-3">
+                  <HeaderFilter label="Status" options={statusOptions} value={statusFilter} onChange={setStatusFilter} />
+                </th>
                 <th className="px-4 py-3 font-medium text-gray-600">Late</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Early Out</th>
                 <th className="px-4 py-3 font-medium text-gray-600">DeskTime</th>
@@ -262,6 +552,8 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
                 const raw = log?.raw_response as Record<string, unknown> | null;
                 const desktimeSeconds = raw?.desktimeTime as number | undefined;
                 const productiveSeconds = raw?.productiveTime as number | undefined;
+                const displayStatus = getDisplayStatus(log, tz, isToday);
+                const location = getLocation(user.id, displayStatus);
 
                 return (
                   <tr key={user.id} className="hover:bg-gray-50">
@@ -269,12 +561,30 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
                       {user.full_name || user.email.split("@")[0]}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
-                      {getTzLabel(tz)}
+                      {HOLIDAY_COUNTRY_LABELS[user.holiday_country] ?? user.holiday_country}
+                    </td>
+                    <td className="px-4 py-3">
+                      {location ? (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
+                            location === "office"
+                              ? "bg-indigo-50 text-indigo-700"
+                              : "bg-teal-50 text-teal-700"
+                          }`}
+                        >
+                          {location === "office" ? "Office" : "Online"}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-600">
                       {log
                         ? `${log.scheduled_start?.slice(0, 5)} - ${log.scheduled_end?.slice(0, 5)}`
                         : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">
+                      {getTzLabel(tz)}
                     </td>
                     <td className="px-4 py-3">
                       {log ? formatClockTime(log.clock_in, tz) : "-"}
@@ -282,7 +592,6 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
                     <td className="px-4 py-3">
                       {(() => {
                         if (!log?.clock_out) return "-";
-                        const isToday = selectedDate === new Date().toISOString().split("T")[0];
                         if (!isToday) return formatClockTime(log.clock_out, tz);
                         // Show clock out if inactive for more than 1 hour
                         const msSinceLastActive = Date.now() - new Date(log.clock_out).getTime();
@@ -292,11 +601,11 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
                       })()}
                     </td>
                     <td className="px-4 py-3">
-                      {log ? (
+                      {displayStatus !== "no_data" ? (
                         <span
-                          className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusStyles[log.status] ?? "bg-gray-100"}`}
+                          className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusStyles[displayStatus] ?? "bg-gray-100"}`}
                         >
-                          {statusLabels[log.status] ?? log.status}
+                          {statusLabels[displayStatus] ?? displayStatus}
                         </span>
                       ) : (
                         <span className="text-gray-400">-</span>
@@ -306,9 +615,17 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
                       {log?.late_minutes ? `${log.late_minutes}m` : "-"}
                     </td>
                     <td className="px-4 py-3 text-orange-600">
-                      {log?.early_departure_minutes
-                        ? `${log.early_departure_minutes}m`
-                        : "-"}
+                      {(() => {
+                        // Don't show early departure minutes if shift hasn't ended yet
+                        if (isToday && log?.scheduled_end) {
+                          const scheduledEnd = timeToMinutes(log.scheduled_end.slice(0, 5));
+                          const nowMinutes = getCurrentTimeMinutes(tz);
+                          if (nowMinutes < scheduledEnd) return "-";
+                        }
+                        return log?.early_departure_minutes
+                          ? `${log.early_departure_minutes}m`
+                          : "-";
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
                       {formatDuration(desktimeSeconds)}

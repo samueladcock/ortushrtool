@@ -9,7 +9,7 @@ export default async function AllAttendancePage() {
 
   const { data: users } = await supabase
     .from("users")
-    .select("id, full_name, email, timezone")
+    .select("id, full_name, email, timezone, holiday_country")
     .eq("is_active", true)
     .not("desktime_employee_id", "is", null)
     .order("full_name");

@@ -84,11 +84,11 @@ export async function GET(request: Request) {
     const today = format(new Date(), "yyyy-MM-dd");
     const isSyncingToday = syncDate === today;
 
-    // Re-evaluate any past attendance logs stuck as "working"
+    // Re-evaluate any past attendance logs stuck as "working" or "not_started"
     const { data: staleWorking } = await supabase
       .from("attendance_logs")
       .select("id, clock_in, clock_out, scheduled_start, scheduled_end, raw_response")
-      .eq("status", "working")
+      .in("status", ["working", "not_started"])
       .lt("date", today);
 
     for (const log of staleWorking ?? []) {
@@ -209,7 +209,7 @@ export async function GET(request: Request) {
         if (isSyncingToday) {
           const nowInTz = getCurrentTimeMinutes(userTz);
           const scheduledStartMinutes = timeToMinutes(scheduledStart.slice(0, 5));
-          status = nowInTz >= scheduledStartMinutes ? "absent" : "working";
+          status = nowInTz >= scheduledStartMinutes ? "absent" : "not_started";
         } else {
           status = "absent";
         }
