@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
-import { flagNotificationEmail } from "@/lib/email/templates";
+import { loadAndRender } from "@/lib/email/render";
 import { format, subDays } from "date-fns";
 
 export async function GET(request: Request) {
@@ -141,13 +141,21 @@ export async function GET(request: Request) {
 
         // Send notifications (only if enabled)
         if (emailsEnabled) {
-          const emailHtml = flagNotificationEmail({
-            employeeName: employee.full_name || employee.email,
-            flagDate,
-            flagType: flag.type,
-            scheduledTime: flag.scheduled,
-            actualTime: flag.actual,
-            deviationMinutes: flag.deviation,
+          const flagLabels: Record<string, string> = {
+            late_arrival: "Late Arrival",
+            early_departure: "Early Departure",
+            absent: "Absent",
+          };
+
+          const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+          const { subject: emailSubject, html: emailHtml } = await loadAndRender("attendance_flag", {
+            employee_name: employee.full_name || employee.email,
+            flag_date: flagDate,
+            flag_type: flagLabels[flag.type] ?? flag.type,
+            scheduled_time: flag.scheduled,
+            actual_time: flag.actual || "",
+            deviation_minutes: String(flag.deviation),
+            app_url: APP_URL,
           });
 
           const recipients = [employee.email, ...hrEmails];
@@ -167,7 +175,7 @@ export async function GET(request: Request) {
 
           const result = await sendEmail({
             to: uniqueRecipients,
-            subject: `Attendance Flag: ${employee.full_name || employee.email} - ${flag.type.replace("_", " ")}`,
+            subject: emailSubject,
             html: emailHtml,
           });
 

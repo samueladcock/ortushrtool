@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
+import { loadAndRender } from "@/lib/email/render";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -40,24 +41,16 @@ export async function POST(request: Request) {
   const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const employeeName = leave.employee.full_name || leave.employee.email;
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1f2937;">Leave Request ${isApproved ? "Approved" : "Rejected"}</h2>
-      <div style="background: ${isApproved ? "#f0fdf4" : "#fef2f2"}; border: 1px solid ${isApproved ? "#bbf7d0" : "#fecaca"}; border-radius: 8px; padding: 16px; margin: 16px 0;">
-        <p style="margin: 0; font-weight: bold; color: ${isApproved ? "#166534" : "#991b1b"};">
-          ${employeeName}'s ${leaveLabels[leave.leave_type] ?? leave.leave_type} request has been ${status}.
-        </p>
-      </div>
-      <table style="width: 100%; border-collapse: collapse;">
-        <tr><td style="padding: 8px 0; color: #6b7280;">Employee</td><td style="padding: 8px 0; font-weight: bold;">${employeeName}</td></tr>
-        <tr><td style="padding: 8px 0; color: #6b7280;">Type</td><td style="padding: 8px 0;">${leaveLabels[leave.leave_type] ?? leave.leave_type}</td></tr>
-        <tr><td style="padding: 8px 0; color: #6b7280;">Dates</td><td style="padding: 8px 0;">${leave.start_date} to ${leave.end_date}</td></tr>
-        <tr><td style="padding: 8px 0; color: #6b7280;">Reason</td><td style="padding: 8px 0;">${leave.reason}</td></tr>
-      </table>
-      ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ""}
-      <a href="${APP_URL}/requests" style="display: inline-block; margin-top: 16px; padding: 10px 20px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px;">View in App</a>
-    </div>
-  `;
+  const templateType = isApproved ? "leave_approved" : "leave_rejected";
+  const { subject, html } = await loadAndRender(templateType, {
+    employee_name: employeeName,
+    leave_type: leaveLabels[leave.leave_type] ?? leave.leave_type,
+    start_date: leave.start_date,
+    end_date: leave.end_date,
+    reason: leave.reason,
+    notes: notes || "",
+    app_url: APP_URL,
+  });
 
   // Send to employee AND manager
   const recipients: string[] = [leave.employee.email];
@@ -83,7 +76,7 @@ export async function POST(request: Request) {
 
   const result = await sendEmail({
     to: [...new Set(recipients)],
-    subject: `Leave ${isApproved ? "Approved" : "Rejected"}: ${employeeName} — ${leaveLabels[leave.leave_type] ?? leave.leave_type}`,
+    subject,
     html,
   });
 

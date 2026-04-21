@@ -18,6 +18,10 @@ import {
   Palmtree,
   Target,
   UsersRound,
+  ChevronDown,
+  SlidersHorizontal,
+  Eye,
+  Mail,
 } from "lucide-react";
 import { useState } from "react";
 import type { UserRole } from "@/types/database";
@@ -75,9 +79,14 @@ const navSections: NavSection[] = [
       { label: "Manage Holidays", href: "/admin/holidays", icon: <CalendarHeart size={20} />, minRole: "hr_admin" },
       { label: "Leave Plans", href: "/admin/leave-plans", icon: <Palmtree size={20} />, minRole: "hr_admin" },
       { label: "Users", href: "/admin/users", icon: <Users size={20} />, minRole: "hr_admin" },
-      { label: "Settings", href: "/admin/settings", icon: <Settings size={20} />, minRole: "super_admin" },
     ],
   },
+];
+
+const settingsSubItems: NavItem[] = [
+  { label: "General", href: "/admin/settings", icon: <SlidersHorizontal size={18} />, minRole: "super_admin" },
+  { label: "Emails", href: "/admin/settings/emails", icon: <Mail size={18} />, minRole: "super_admin" },
+  { label: "Feature Visibility", href: "/admin/settings/features", icon: <Eye size={18} />, minRole: "super_admin" },
 ];
 
 export function Sidebar({
@@ -89,6 +98,8 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const settingsOpen = pathname.startsWith("/admin/settings");
+  const [settingsExpanded, setSettingsExpanded] = useState(settingsOpen);
 
   const navContent = (
     <nav className="flex flex-col gap-1 p-4">
@@ -135,6 +146,57 @@ export function Sidebar({
           </div>
         );
       })}
+
+      {/* Settings dropdown */}
+      {hasRole(userRole, "super_admin") && (
+        <div>
+          <p className="mb-1 mt-4 px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+            Settings
+          </p>
+          <button
+            onClick={() => setSettingsExpanded(!settingsExpanded)}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              settingsOpen
+                ? "bg-blue-50 text-blue-700"
+                : "text-gray-700 hover:bg-gray-100"
+            )}
+          >
+            <Settings size={20} />
+            Settings
+            <ChevronDown
+              size={16}
+              className={cn(
+                "ml-auto transition-transform",
+                settingsExpanded && "rotate-180"
+              )}
+            />
+          </button>
+          {settingsExpanded && (
+            <div className="ml-4 mt-1 space-y-0.5 border-l border-gray-200 pl-3">
+              {settingsSubItems.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-gray-700 hover:bg-gray-100"
+                    )}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </nav>
   );
 

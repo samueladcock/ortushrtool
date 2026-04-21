@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
+import { loadAndRender } from "@/lib/email/render";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -38,24 +39,20 @@ export async function POST(request: Request) {
   const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const locationLabel = work_location === "online" ? "Online" : "Office";
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1f2937;">Work on Holiday Request</h2>
-      <p>${employee.full_name || employee.email} is requesting to work on a holiday.</p>
-      <table style="width: 100%; border-collapse: collapse;">
-        <tr><td style="padding: 8px 0; color: #6b7280;">Holiday</td><td style="padding: 8px 0; font-weight: bold;">${holiday_name}</td></tr>
-        <tr><td style="padding: 8px 0; color: #6b7280;">Date</td><td style="padding: 8px 0;">${holiday_date}</td></tr>
-        <tr><td style="padding: 8px 0; color: #6b7280;">Hours</td><td style="padding: 8px 0;">${start_time} - ${end_time}</td></tr>
-        <tr><td style="padding: 8px 0; color: #6b7280;">Location</td><td style="padding: 8px 0;">${locationLabel}</td></tr>
-        <tr><td style="padding: 8px 0; color: #6b7280;">Reason</td><td style="padding: 8px 0;">${reason}</td></tr>
-      </table>
-      <a href="${APP_URL}/requests" style="display: inline-block; margin-top: 16px; padding: 10px 20px; background: #0d9488; color: white; text-decoration: none; border-radius: 6px;">Review Request</a>
-    </div>
-  `;
+  const { subject, html } = await loadAndRender("holiday_work_submitted", {
+    employee_name: employee.full_name || employee.email,
+    holiday_name,
+    holiday_date,
+    start_time,
+    end_time,
+    location: locationLabel,
+    reason,
+    app_url: APP_URL,
+  });
 
   const result = await sendEmail({
     to: manager.email,
-    subject: `Holiday Work Request from ${employee.full_name || employee.email}`,
+    subject,
     html,
   });
 

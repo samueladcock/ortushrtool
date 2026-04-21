@@ -126,6 +126,16 @@ export interface AttendanceFlag {
   created_at: string;
 }
 
+export interface EmailTemplate {
+  type: string;
+  name: string;
+  subject: string;
+  body: string;
+  variables: string;
+  updated_by: string | null;
+  updated_at: string;
+}
+
 export interface SystemSetting {
   key: string;
   value: string;

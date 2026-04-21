@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
-import { adjustmentDecisionEmail } from "@/lib/email/templates";
+import { loadAndRender } from "@/lib/email/render";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -57,17 +57,19 @@ export async function POST(request: Request) {
       ? "Permanent Change"
       : adjustment.requested_date;
 
-  const html = adjustmentDecisionEmail({
-    employeeName: employee.full_name || employee.email,
-    requestedDate,
-    requestedTime: `${adjustment.requested_start_time.slice(0, 5)} - ${adjustment.requested_end_time.slice(0, 5)}`,
-    status,
-    reviewerNotes: notes,
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const templateType = status === "approved" ? "adjustment_approved" : "adjustment_rejected";
+  const { subject, html } = await loadAndRender(templateType, {
+    employee_name: employee.full_name || employee.email,
+    requested_date: requestedDate,
+    requested_time: `${adjustment.requested_start_time.slice(0, 5)} - ${adjustment.requested_end_time.slice(0, 5)}`,
+    notes: notes || "",
+    app_url: APP_URL,
   });
 
   const result = await sendEmail({
     to: recipients,
-    subject: `Schedule Adjustment ${status === "approved" ? "Approved" : "Rejected"} — ${employee.full_name || employee.email}`,
+    subject,
     html,
   });
 

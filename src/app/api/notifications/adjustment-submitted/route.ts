@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
-import { adjustmentRequestEmail } from "@/lib/email/templates";
+import { loadAndRender } from "@/lib/email/render";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -41,18 +41,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Manager not found" }, { status: 400 });
   }
 
-  const html = adjustmentRequestEmail({
-    employeeName: employee.full_name || employee.email,
-    requestedDate: requested_date,
-    originalTime: original_time,
-    requestedTime: requested_time,
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  const { subject, html } = await loadAndRender("adjustment_submitted", {
+    employee_name: employee.full_name || employee.email,
+    requested_date,
+    original_time,
+    requested_time,
     reason,
-    adjustmentId: "",
+    app_url: APP_URL,
   });
 
   const result = await sendEmail({
     to: manager.email,
-    subject: `Schedule Adjustment Request from ${employee.full_name || employee.email}`,
+    subject,
     html,
   });
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
+import { loadAndRender } from "@/lib/email/render";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -30,25 +31,17 @@ export async function POST(request: Request) {
   const employeeName = hwRequest.employee.full_name || hwRequest.employee.email;
   const locationLabel = hwRequest.work_location === "online" ? "Online" : "Office";
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1f2937;">Holiday Work Request ${isApproved ? "Approved" : "Rejected"}</h2>
-      <div style="background: ${isApproved ? "#f0fdf4" : "#fef2f2"}; border: 1px solid ${isApproved ? "#bbf7d0" : "#fecaca"}; border-radius: 8px; padding: 16px; margin: 16px 0;">
-        <p style="margin: 0; font-weight: bold; color: ${isApproved ? "#166534" : "#991b1b"};">
-          ${employeeName}'s request to work on ${hwRequest.holiday.name} has been ${status}.
-        </p>
-      </div>
-      <table style="width: 100%; border-collapse: collapse;">
-        <tr><td style="padding: 8px 0; color: #6b7280;">Employee</td><td style="padding: 8px 0; font-weight: bold;">${employeeName}</td></tr>
-        <tr><td style="padding: 8px 0; color: #6b7280;">Holiday</td><td style="padding: 8px 0;">${hwRequest.holiday.name}</td></tr>
-        <tr><td style="padding: 8px 0; color: #6b7280;">Date</td><td style="padding: 8px 0;">${hwRequest.holiday_date}</td></tr>
-        <tr><td style="padding: 8px 0; color: #6b7280;">Hours</td><td style="padding: 8px 0;">${hwRequest.start_time} - ${hwRequest.end_time}</td></tr>
-        <tr><td style="padding: 8px 0; color: #6b7280;">Location</td><td style="padding: 8px 0;">${locationLabel}</td></tr>
-      </table>
-      ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ""}
-      <a href="${APP_URL}/requests" style="display: inline-block; margin-top: 16px; padding: 10px 20px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px;">View in App</a>
-    </div>
-  `;
+  const templateType = isApproved ? "holiday_work_approved" : "holiday_work_rejected";
+  const { subject, html } = await loadAndRender(templateType, {
+    employee_name: employeeName,
+    holiday_name: hwRequest.holiday.name,
+    holiday_date: hwRequest.holiday_date,
+    start_time: hwRequest.start_time,
+    end_time: hwRequest.end_time,
+    location: locationLabel,
+    notes: notes || "",
+    app_url: APP_URL,
+  });
 
   const recipients: string[] = [hwRequest.employee.email];
 
@@ -72,7 +65,7 @@ export async function POST(request: Request) {
 
   const result = await sendEmail({
     to: [...new Set(recipients)],
-    subject: `Holiday Work ${isApproved ? "Approved" : "Rejected"}: ${employeeName} — ${hwRequest.holiday.name}`,
+    subject,
     html,
   });
 

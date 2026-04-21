@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
+import { loadAndRender } from "@/lib/email/render";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
 
 export async function POST(request: Request) {
@@ -114,20 +115,16 @@ export async function POST(request: Request) {
 
   const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1f2937;">Pending Approval Reminder</h2>
-      <p>${employeeName} is waiting for your approval on a pending request.</p>
-      <table style="width: 100%; border-collapse: collapse;">
-        ${details}
-      </table>
-      <a href="${APP_URL}/requests" style="display: inline-block; margin-top: 16px; padding: 10px 20px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px;">Review Request</a>
-    </div>
-  `;
+  const { subject: renderedSubject, html } = await loadAndRender("reminder", {
+    employee_name: employeeName,
+    request_type: request_type === "schedule_adjustment" ? "Schedule Adjustment" : request_type === "leave" ? "Leave" : "Holiday Work",
+    details,
+    app_url: APP_URL,
+  });
 
   const result = await sendEmail({
     to: manager.email,
-    subject,
+    subject: subject || renderedSubject,
     html,
   });
 
