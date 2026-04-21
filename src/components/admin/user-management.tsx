@@ -60,9 +60,39 @@ export function UserManagement({
     router.refresh();
   };
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [resettingPassword, setResettingPassword] = useState<string | null>(null);
   const [leaveTypesUser, setLeaveTypesUser] = useState<User | null>(null);
+
+  const allFilteredSelected =
+    filteredUsers.length > 0 && filteredUsers.every((u) => selected.has(u.id));
+
+  const toggleAll = () => {
+    if (allFilteredSelected) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        filteredUsers.forEach((u) => next.delete(u.id));
+        return next;
+      });
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        filteredUsers.forEach((u) => next.add(u.id));
+        return next;
+      });
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const deleteUser = async (user: User) => {
     if (!confirm(`Permanently delete ${user.full_name || user.email}? This will remove all their data (schedules, attendance, flags, etc.) and cannot be undone.`)) {
@@ -79,6 +109,11 @@ export function UserManagement({
         const err = await res.json();
         alert(err.error || "Failed to delete user");
       } else {
+        setSelected((prev) => {
+          const next = new Set(prev);
+          next.delete(user.id);
+          return next;
+        });
         router.refresh();
       }
     } catch {
@@ -86,6 +121,35 @@ export function UserManagement({
     } finally {
       setDeleting(null);
     }
+  };
+
+  const bulkDeleteUsers = async () => {
+    const count = selected.size;
+    if (count === 0) return;
+    if (!confirm(`Permanently delete ${count} user${count > 1 ? "s" : ""}? This will remove all their data and cannot be undone.`))
+      return;
+
+    setBulkDeleting(true);
+    let failed = 0;
+    for (const userId of selected) {
+      try {
+        const res = await fetch("/api/admin/delete-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId }),
+        });
+        if (!res.ok) failed++;
+      } catch {
+        failed++;
+      }
+    }
+
+    if (failed > 0) {
+      alert(`${failed} user(s) could not be deleted.`);
+    }
+    setSelected(new Set());
+    setBulkDeleting(false);
+    router.refresh();
   };
 
   const resetPassword = async (user: User) => {
@@ -117,7 +181,7 @@ export function UserManagement({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <input
           type="text"
           placeholder="Search by name, email, or department..."
@@ -132,6 +196,16 @@ export function UserManagement({
           <Plus size={16} />
           Add User
         </button>
+        {selected.size > 0 && (
+          <button
+            onClick={bulkDeleteUsers}
+            disabled={bulkDeleting}
+            className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-red-700 active:scale-95 disabled:opacity-50"
+          >
+            <Trash2 size={16} />
+            {bulkDeleting ? "Deleting..." : `Delete ${selected.size} Selected`}
+          </button>
+        )}
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -139,6 +213,14 @@ export function UserManagement({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 text-left">
+                <th className="px-3 py-3 font-medium text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleAll}
+                    className="rounded border-gray-300"
+                  />
+                </th>
                 <th className="px-4 py-3 font-medium text-gray-600">Name</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Email</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Role</th>
@@ -158,6 +240,14 @@ export function UserManagement({
                 const isEditing = editingId === user.id;
                 return (
                   <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(user.id)}
+                        onChange={() => toggleOne(user.id)}
+                        className="rounded border-gray-300"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       {isEditing ? (
                         <input
