@@ -1,12 +1,11 @@
 import { requireRole } from "@/lib/auth/helpers";
 import { createClient } from "@/lib/supabase/server";
-import { ReportsDashboard } from "@/components/reports/reports-dashboard";
+import { ReportsTabs } from "@/components/reports/reports-tabs";
 
 export default async function ReportsPage() {
   await requireRole("hr_admin");
   const supabase = await createClient();
 
-  // Get all users for the filter dropdown
   const { data: users } = await supabase
     .from("users")
     .select("id, full_name, email, department")
@@ -18,10 +17,10 @@ export default async function ReportsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
         <p className="text-gray-600">
-          Attendance compliance reporting and analytics
+          Attendance and leave reporting
         </p>
       </div>
-      <ReportsDashboard users={users ?? []} />
+      <ReportsTabs users={users ?? []} />
     </div>
   );
 }

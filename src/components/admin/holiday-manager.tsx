@@ -1,24 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload, Download } from "lucide-react";
 import type { Holiday, HolidayCountry } from "@/types/database";
 import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
 import { format, parseISO } from "date-fns";
 
 const COUNTRIES: HolidayCountry[] = ["PH", "XK", "IT", "AE"];
+const VALID_COUNTRIES = new Set<string>(COUNTRIES);
 
 export function HolidayManager({ holidays }: { holidays: Holiday[] }) {
   const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [filterCountry, setFilterCountry] = useState<HolidayCountry | "all">(
     "all"
   );
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   // Form state
   const [name, setName] = useState("");
@@ -30,6 +35,34 @@ export function HolidayManager({ holidays }: { holidays: Holiday[] }) {
     filterCountry === "all"
       ? holidays
       : holidays.filter((h) => h.country === filterCountry);
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((h) => selected.has(h.id));
+
+  const toggleAll = () => {
+    if (allFilteredSelected) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        filtered.forEach((h) => next.delete(h.id));
+        return next;
+      });
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        filtered.forEach((h) => next.add(h.id));
+        return next;
+      });
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,16 +106,151 @@ export function HolidayManager({ holidays }: { holidays: Holiday[] }) {
       setMessage(`Error: ${error.message}`);
     } else {
       setMessage("Holiday deleted.");
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       router.refresh();
     }
     setDeleting(null);
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selected.size;
+    if (count === 0) return;
+    if (!confirm(`Are you sure you want to delete ${count} holiday${count > 1 ? "s" : ""}?`))
+      return;
+
+    setBulkDeleting(true);
+    setMessage("");
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("holidays")
+      .delete()
+      .in("id", Array.from(selected));
+
+    if (error) {
+      setMessage(`Error: ${error.message}`);
+    } else {
+      setMessage(`${count} holiday${count > 1 ? "s" : ""} deleted.`);
+      setSelected(new Set());
+      router.refresh();
+    }
+    setBulkDeleting(false);
+  };
+
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setMessage("");
+
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+
+    if (lines.length < 2) {
+      setMessage("Error: CSV must have a header row and at least one data row.");
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+
+    // Parse header to find column indexes
+    const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const nameIdx = header.findIndex((h) => h === "name" || h === "holiday" || h === "holiday name");
+    const dateIdx = header.findIndex((h) => h === "date");
+    const countryIdx = header.findIndex((h) => h === "country" || h === "country code");
+    const recurringIdx = header.findIndex((h) => h === "recurring" || h === "is_recurring");
+
+    if (nameIdx === -1 || dateIdx === -1 || countryIdx === -1) {
+      setMessage(
+        "Error: CSV must have columns: name (or holiday), date, country (or country code). Optional: recurring."
+      );
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const rows: {
+      name: string;
+      date: string;
+      country: string;
+      is_recurring: boolean;
+      created_by: string | undefined;
+    }[] = [];
+    const errors: string[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+      const hName = cols[nameIdx];
+      const hDate = cols[dateIdx];
+      const hCountry = cols[countryIdx]?.toUpperCase();
+      const hRecurring =
+        recurringIdx !== -1
+          ? ["true", "yes", "1"].includes(cols[recurringIdx]?.toLowerCase())
+          : false;
+
+      if (!hName || !hDate) {
+        errors.push(`Row ${i + 1}: missing name or date`);
+        continue;
+      }
+
+      if (!VALID_COUNTRIES.has(hCountry)) {
+        errors.push(
+          `Row ${i + 1}: invalid country "${hCountry}" (use ${COUNTRIES.join(", ")})`
+        );
+        continue;
+      }
+
+      // Validate date format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(hDate)) {
+        errors.push(`Row ${i + 1}: date must be YYYY-MM-DD format`);
+        continue;
+      }
+
+      rows.push({
+        name: hName,
+        date: hDate,
+        country: hCountry,
+        is_recurring: hRecurring,
+        created_by: user?.id,
+      });
+    }
+
+    if (rows.length > 0) {
+      const { error } = await supabase.from("holidays").insert(rows);
+      if (error) {
+        setMessage(`Error inserting holidays: ${error.message}`);
+      } else {
+        const msg = `${rows.length} holiday${rows.length > 1 ? "s" : ""} imported.`;
+        setMessage(
+          errors.length > 0
+            ? `${msg} ${errors.length} row(s) skipped:\n${errors.join("; ")}`
+            : msg
+        );
+        router.refresh();
+      }
+    } else {
+      setMessage(`No valid rows found. ${errors.join("; ")}`);
+    }
+
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = "";
   };
 
   return (
     <div className="space-y-4">
       {message && (
         <div
-          className={`rounded-lg p-3 text-sm ${message.startsWith("Error") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}
+          className={`rounded-lg p-3 text-sm whitespace-pre-wrap ${message.startsWith("Error") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}
         >
           {message}
         </div>
@@ -112,7 +280,61 @@ export function HolidayManager({ holidays }: { holidays: Holiday[] }) {
           <Plus size={16} />
           Add Holiday
         </button>
+
+        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <Upload size={16} />
+          {uploading ? "Uploading..." : "Upload CSV"}
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleCsvUpload}
+            disabled={uploading}
+          />
+        </label>
+
+        {selected.size > 0 && (
+          <button
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            <Trash2 size={16} />
+            {bulkDeleting
+              ? "Deleting..."
+              : `Delete ${selected.size} Selected`}
+          </button>
+        )}
       </div>
+
+      {/* CSV format hint */}
+      <p className="text-xs text-gray-400">
+        CSV format: <code className="rounded bg-gray-100 px-1">name,date,country,recurring</code>{" "}
+        — date as YYYY-MM-DD, country as {COUNTRIES.join("/")}, recurring as true/false (optional).{" "}
+        <button
+          type="button"
+          onClick={() => {
+            const csv = [
+              "name,date,country,recurring",
+              "New Year's Day,2026-01-01,PH,true",
+              "Independence Day,2026-06-12,PH,true",
+              "Christmas Day,2026-12-25,PH,true",
+            ].join("\n");
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "holidays-template.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 underline"
+        >
+          <Download size={12} />
+          Download template
+        </button>
+      </p>
 
       {/* Add form */}
       {showForm && (
@@ -199,6 +421,14 @@ export function HolidayManager({ holidays }: { holidays: Holiday[] }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 text-left text-gray-600">
+                <th className="px-4 py-3 font-medium">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleAll}
+                    className="rounded border-gray-300"
+                  />
+                </th>
                 <th className="px-6 py-3 font-medium">Date</th>
                 <th className="px-6 py-3 font-medium">Holiday</th>
                 <th className="px-6 py-3 font-medium">Country</th>
@@ -209,7 +439,15 @@ export function HolidayManager({ holidays }: { holidays: Holiday[] }) {
             <tbody className="divide-y divide-gray-100">
               {filtered.length > 0 ? (
                 filtered.map((holiday) => (
-                  <tr key={holiday.id}>
+                  <tr key={holiday.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(holiday.id)}
+                        onChange={() => toggleOne(holiday.id)}
+                        className="rounded border-gray-300"
+                      />
+                    </td>
                     <td className="px-6 py-3">
                       {format(parseISO(holiday.date), "MMM d, yyyy")}
                     </td>
@@ -243,7 +481,7 @@ export function HolidayManager({ holidays }: { holidays: Holiday[] }) {
               ) : (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-6 py-8 text-center text-gray-500"
                   >
                     No holidays found.
