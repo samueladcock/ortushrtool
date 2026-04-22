@@ -247,7 +247,7 @@ export function UserManagement({
           `"${u.department ?? ""}"`,
           `"${managerName}"`,
           u.holiday_country,
-          u.timezone || "Asia/Manila",
+          getTzLabel(u.timezone || "Asia/Manila").split(" ")[0],
           u.desktime_employee_id ?? "",
           u.birthday ?? "",
           u.hire_date ?? "",
