@@ -59,32 +59,65 @@ export function SchedulesTable({
   });
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [leaves, setLeaves] = useState<LeaveRow[]>([]);
+  const [flagNotes, setFlagNotes] = useState<Record<string, string>>({});
+  const [editingFlagNote, setEditingFlagNote] = useState<string | null>(null);
+  const [flagNoteInput, setFlagNoteInput] = useState("");
+  const [savingFlagNote, setSavingFlagNote] = useState(false);
 
-  // Fetch adjustments and leave for the selected date
+  // Fetch adjustments, leave, and flag notes
   useEffect(() => {
     async function fetchForDate() {
       const supabase = createClient();
 
-      const { data: adj } = await supabase
-        .from("schedule_adjustments")
-        .select("*")
-        .eq("requested_date", selectedDate)
-        .eq("status", "approved");
+      const [{ data: adj }, { data: lv }, { data: notes }] = await Promise.all([
+        supabase
+          .from("schedule_adjustments")
+          .select("*")
+          .eq("requested_date", selectedDate)
+          .eq("status", "approved"),
+        supabase
+          .from("leave_requests")
+          .select("*")
+          .eq("status", "approved")
+          .lte("start_date", selectedDate)
+          .gte("end_date", selectedDate),
+        supabase
+          .from("system_settings")
+          .select("key, value")
+          .like("key", "flag_note:%"),
+      ]);
 
       setAdjustments(adj ?? []);
-
-      const { data: lv } = await supabase
-        .from("leave_requests")
-        .select("*")
-        .eq("status", "approved")
-        .lte("start_date", selectedDate)
-        .gte("end_date", selectedDate);
-
       setLeaves(lv ?? []);
+
+      const noteMap: Record<string, string> = {};
+      for (const n of notes ?? []) {
+        const userId = n.key.replace("flag_note:", "");
+        noteMap[userId] = n.value;
+      }
+      setFlagNotes(noteMap);
     }
 
     fetchForDate();
   }, [selectedDate]);
+
+  const saveFlagNote = async (userId: string) => {
+    setSavingFlagNote(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    await supabase.from("system_settings").upsert({
+      key: `flag_note:${userId}`,
+      value: flagNoteInput,
+      updated_by: user?.id,
+      updated_at: new Date().toISOString(),
+    });
+
+    setFlagNotes((prev) => ({ ...prev, [userId]: flagNoteInput }));
+    setEditingFlagNote(null);
+    setFlagNoteInput("");
+    setSavingFlagNote(false);
+  };
 
   // Build schedule lookup
   const scheduleMap = useMemo(() => {
@@ -224,7 +257,7 @@ export function SchedulesTable({
                 const s = userSchedule?.get(d);
                 if (s && !s.is_rest_day && s.work_location === "office") officeDays++;
               }
-              const isManager = user.role === "manager" || user.role === "hr_admin" || user.role === "super_admin";
+              const isManager = user.role === "manager";
               const minOfficeDays = isManager ? 3 : 2;
               const isFlagged = officeDays < minOfficeDays;
 
@@ -249,15 +282,63 @@ export function SchedulesTable({
                           {user.full_name || user.email.split("@")[0]}
                         </span>
                         {isFlagged && (
-                          <span title={`Only ${officeDays} office day${officeDays !== 1 ? "s" : ""} (${isManager ? "managers need 3" : "employees need 2"})`}>
-                            <Flag size={14} className="fill-red-500 text-red-500" />
-                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setEditingFlagNote(editingFlagNote === user.id ? null : user.id);
+                              setFlagNoteInput(flagNotes[user.id] ?? "");
+                            }}
+                            title={
+                              flagNotes[user.id]
+                                ? `${officeDays} office day${officeDays !== 1 ? "s" : ""} — ${flagNotes[user.id]}`
+                                : `Only ${officeDays} office day${officeDays !== 1 ? "s" : ""} (${isManager ? "managers need 3" : "employees need 2"}) — click to add reason`
+                            }
+                          >
+                            <Flag size={14} className={flagNotes[user.id] ? "fill-amber-500 text-amber-500" : "fill-red-500 text-red-500"} />
+                          </button>
                         )}
                       </span>
                       <p className="text-xs text-gray-400 font-normal">
                         {user.email}
                       </p>
                     </Link>
+                    {isFlagged && editingFlagNote === user.id && (
+                      <div className="mt-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                        <p className="text-xs text-red-600">
+                          {officeDays} office day{officeDays !== 1 ? "s" : ""} — {isManager ? "managers need 3" : "employees need 2"}
+                        </p>
+                        <textarea
+                          value={flagNoteInput}
+                          onChange={(e) => setFlagNoteInput(e.target.value)}
+                          placeholder="Reason for exception (required)..."
+                          rows={2}
+                          className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => saveFlagNote(user.id)}
+                            disabled={savingFlagNote || !flagNoteInput.trim()}
+                            className="rounded bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {savingFlagNote ? "Saving..." : "Save"}
+                          </button>
+                          <button
+                            onClick={() => setEditingFlagNote(null)}
+                            className="rounded border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {flagNotes[user.id] && (
+                          <p className="text-xs text-amber-600">Current: {flagNotes[user.id]}</p>
+                        )}
+                      </div>
+                    )}
+                    {isFlagged && editingFlagNote !== user.id && flagNotes[user.id] && (
+                      <p className="mt-0.5 text-[10px] text-amber-600 truncate max-w-[200px]" title={flagNotes[user.id]}>
+                        {flagNotes[user.id]}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-600 text-xs">
                     {user.manager_id
