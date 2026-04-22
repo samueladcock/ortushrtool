@@ -14,19 +14,34 @@ const COUNTRY_MAP: Record<string, string> = {
   AE: "AE", UAE: "AE", DUBAI: "AE",
 };
 
+const ROLE_MAP: Record<string, string> = {
+  EMPLOYEE: "employee",
+  MANAGER: "manager",
+  HR_ADMIN: "hr_admin",
+  "HR ADMIN": "hr_admin",
+  SUPER_ADMIN: "super_admin",
+  "SUPER ADMIN": "super_admin",
+};
+
 interface ParsedRow {
   name: string;
   email: string;
   timezone: string;
+  role: string;
   department: string;
   managerName: string;
   holidayCountry: string;
   desktimeId: number | null;
-  days: ({ location: string; start: string; end: string } | null)[];
+  birthday: string;
+  hireDate: string;
+  endDate: string;
+  isActive: boolean | null;
+  days: ({ location: string; start: string; end: string } | "rest" | null)[];
 }
 
-function parseScheduleCell(cell: string): { location: string; start: string; end: string } | null {
+function parseScheduleCell(cell: string): { location: string; start: string; end: string } | "rest" | null {
   if (!cell || !cell.trim()) return null;
+  if (cell.trim().toLowerCase() === "rest") return "rest";
   const match = cell.trim().match(/^(Online|Office)\s*-\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})$/i);
   if (!match) return null;
   return { location: match[1].toLowerCase(), start: match[2], end: match[3] };
@@ -50,10 +65,15 @@ function parseCSV(csvText: string): ParsedRow[] {
   if (nameIdx === -1 || emailIdx === -1) return [];
 
   const tzIdx = col(["timezone", "time zone", "tz"]);
+  const roleIdx = col(["role"]);
   const deptIdx = col(["department", "dept"]);
   const managerIdx = col(["manager", "manager name", "manager_name"]);
   const countryIdx = col(["country", "holiday_country", "holiday country"]);
   const desktimeIdx = col(["desktime_id", "desktime id", "desktime_employee_id", "desktime"]);
+  const birthdayIdx = col(["birthday", "date_of_birth", "dob"]);
+  const hireDateIdx = col(["hire_date", "hire date", "start_date", "start date"]);
+  const endDateIdx = col(["end_date", "end date"]);
+  const activeIdx = col(["active", "is_active"]);
   const mIdx = col(["m", "monday"]);
   const tIdx = col(["t", "tuesday"]);
   const wIdx = col(["w", "wednesday"]);
@@ -78,21 +98,36 @@ function parseCSV(csvText: string): ParsedRow[] {
     if (!email) continue;
 
     const tz = tzIdx >= 0 ? parts[tzIdx] || "" : "";
+    const roleRaw = roleIdx >= 0 ? (parts[roleIdx] || "").toUpperCase() : "";
     const country = countryIdx >= 0 ? (parts[countryIdx] || "").toUpperCase() : "";
     const desktimeRaw = desktimeIdx >= 0 ? parts[desktimeIdx] : "";
+    const birthdayRaw = birthdayIdx >= 0 ? parts[birthdayIdx] || "" : "";
+    const hireDateRaw = hireDateIdx >= 0 ? parts[hireDateIdx] || "" : "";
+    const endDateRaw = endDateIdx >= 0 ? parts[endDateIdx] || "" : "";
+    const activeRaw = activeIdx >= 0 ? parts[activeIdx] || "" : "";
 
     const days = [mIdx, tIdx, wIdx, thIdx, fIdx].map(
       (idx) => idx >= 0 ? parseScheduleCell(parts[idx] || "") : null
     );
 
+    let isActive: boolean | null = null;
+    if (activeRaw) {
+      isActive = ["yes", "true", "1"].includes(activeRaw.toLowerCase());
+    }
+
     rows.push({
       name: parts[nameIdx] || "",
       email,
       timezone: TIMEZONE_MAP[tz] ?? (tz || "Asia/Manila"),
+      role: ROLE_MAP[roleRaw] ?? (roleRaw ? roleRaw.toLowerCase() : ""),
       department: deptIdx >= 0 ? parts[deptIdx] || "" : "",
       managerName: managerIdx >= 0 ? parts[managerIdx] || "" : "",
       holidayCountry: COUNTRY_MAP[country] ?? "PH",
       desktimeId: desktimeRaw ? parseInt(desktimeRaw, 10) || null : null,
+      birthday: birthdayRaw,
+      hireDate: hireDateRaw,
+      endDate: endDateRaw,
+      isActive,
       days,
     });
   }
@@ -138,7 +173,7 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const today = new Date().toISOString().split("T")[0];
   const total = rows.length;
-  const hasSchedules = rows.some((r) => r.days.some((d) => d !== null));
+  const hasSchedules = rows.some((r) => r.days.some((d) => d !== null && d !== undefined));
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -167,9 +202,14 @@ export async function POST(request: Request) {
             full_name: row.name,
             timezone: row.timezone,
           };
+          if (row.role) updateFields.role = row.role;
           if (row.department) updateFields.department = row.department;
           if (row.holidayCountry) updateFields.holiday_country = row.holidayCountry;
           if (row.desktimeId) updateFields.desktime_employee_id = row.desktimeId;
+          if (row.birthday) updateFields.birthday = row.birthday;
+          if (row.hireDate) updateFields.hire_date = row.hireDate;
+          if (row.endDate) updateFields.end_date = row.endDate;
+          if (row.isActive !== null) updateFields.is_active = row.isActive;
 
           const { data: existingUser } = await admin
             .from("users")
@@ -264,7 +304,7 @@ export async function POST(request: Request) {
       if (hasSchedules) {
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
-          const hasAnySchedule = row.days.some((d) => d !== null);
+          const hasAnySchedule = row.days.some((d) => d !== null && d !== undefined);
           if (!hasAnySchedule) continue;
 
           send({ type: "progress", phase: "schedules", current: i + 1, total, message: `Creating schedule for ${row.name || row.email}` });
@@ -276,13 +316,15 @@ export async function POST(request: Request) {
 
           for (let dayIdx = 0; dayIdx < 5; dayIdx++) {
             const day = row.days[dayIdx];
+            const isRest = day === "rest";
+            const hasTime = day !== null && day !== "rest";
             await admin.from("schedules").insert({
               employee_id: userId,
               day_of_week: dayIdx,
-              start_time: day?.start ?? "09:00",
-              end_time: day?.end ?? "18:00",
-              is_rest_day: false,
-              work_location: (day?.location ?? "office") as "office" | "online",
+              start_time: hasTime ? day.start : "00:00",
+              end_time: hasTime ? day.end : "00:00",
+              is_rest_day: isRest,
+              work_location: (hasTime ? day.location : "office") as "office" | "online",
               effective_from: today,
             });
             results.schedulesCreated++;
