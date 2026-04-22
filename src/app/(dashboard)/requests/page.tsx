@@ -10,6 +10,7 @@ import { BuzzManager } from "@/components/shared/buzz-manager";
 import Link from "next/link";
 import { ArrowRightLeft, CalendarOff, CalendarCheck, AlertTriangle } from "lucide-react";
 import { startOfWeek, addDays, format } from "date-fns";
+import { LeaveCsvImport } from "@/components/admin/leave-csv-import";
 
 export default async function RequestsPage() {
   const user = await getCurrentUser();
@@ -186,6 +187,8 @@ export default async function RequestsPage() {
         </div>
         {!isReviewer && actionButtons}
       </div>
+
+      {hasRole(user.role, "hr_admin") && <LeaveCsvImport />}
 
       {isReviewer && actionButtons}
 
