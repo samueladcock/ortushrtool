@@ -35,7 +35,31 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
-  // Delete from public.users (cascades to schedules, adjustments, etc.)
+  // Clear all foreign key references that don't cascade
+  await Promise.all([
+    // Null out manager_id references from other users
+    admin.from("users").update({ manager_id: null }).eq("manager_id", userId),
+    // Null out created_by on holidays
+    admin.from("holidays").update({ created_by: null }).eq("created_by", userId),
+    // Null out reviewed_by on leave requests
+    admin.from("leave_requests").update({ reviewed_by: null }).eq("reviewed_by", userId),
+    // Null out reviewed_by on schedule adjustments
+    admin.from("schedule_adjustments").update({ reviewed_by: null }).eq("reviewed_by", userId),
+    // Null out reviewed_by on holiday work requests
+    admin.from("holiday_work_requests").update({ reviewed_by: null }).eq("reviewed_by", userId),
+    // Null out updated_by on system settings
+    admin.from("system_settings").update({ updated_by: null }).eq("updated_by", userId),
+    // Null out updated_by on email templates
+    admin.from("email_templates").update({ updated_by: null }).eq("updated_by", userId),
+    // Null out created_by / assigned_by / updated_by on KPI tables
+    admin.from("kpi_definitions").update({ created_by: null }).eq("created_by", userId),
+    admin.from("kpi_assignments").update({ assigned_by: null }).eq("assigned_by", userId),
+    admin.from("kpi_scores").update({ updated_by: null }).eq("updated_by", userId),
+    // Null out notification log references
+    admin.from("notification_log").update({ related_id: null }).eq("related_id", userId),
+  ]);
+
+  // Delete from public.users (cascades to schedules, attendance, flags, etc.)
   const { error: deleteError } = await admin
     .from("users")
     .delete()
