@@ -209,7 +209,13 @@ export async function POST(request: Request) {
             full_name: row.name,
             timezone: row.timezone,
           };
-          if (row.role && validRoles.has(row.role)) updateFields.role = row.role;
+          if (row.role) {
+            if (validRoles.has(row.role)) {
+              updateFields.role = row.role;
+            } else {
+              results.errors.push(`${row.email}: invalid role "${row.role}" (must be employee, manager, hr_admin, or super_admin)`);
+            }
+          }
           if (row.department) updateFields.department = row.department;
           if (row.holidayCountry) updateFields.holiday_country = row.holidayCountry;
           if (row.desktimeId) updateFields.desktime_employee_id = row.desktimeId;
