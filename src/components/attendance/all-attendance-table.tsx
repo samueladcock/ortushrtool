@@ -32,6 +32,8 @@ interface ScheduleRow {
   day_of_week: number;
   work_location: string;
   is_rest_day: boolean;
+  start_time: string;
+  end_time: string;
 }
 
 interface AdjustmentRow {
@@ -245,7 +247,7 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
         .eq("date", selectedDate),
       supabase
         .from("schedules")
-        .select("employee_id, day_of_week, work_location, is_rest_day")
+        .select("employee_id, day_of_week, work_location, is_rest_day, start_time, end_time")
         .eq("day_of_week", dayOfWeek)
         .lte("effective_from", selectedDate)
         .or(`effective_until.is.null,effective_until.gte.${selectedDate}`),
@@ -295,8 +297,19 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
     return map;
   }, [adjustments]);
 
+  // Build lookup: employeeId -> schedule times from base schedule
+  const scheduleTimeMap = useMemo(() => {
+    const map = new Map<string, { start: string; end: string }>();
+    for (const s of schedules) {
+      if (!s.is_rest_day && s.start_time && s.end_time) {
+        map.set(s.employee_id, { start: s.start_time, end: s.end_time });
+      }
+    }
+    return map;
+  }, [schedules]);
+
   function getLocation(userId: string, status: string): string | null {
-    if (["rest_day", "on_leave", "holiday", "absent", "no_data"].includes(status)) {
+    if (["rest_day", "on_leave", "holiday", "absent"].includes(status)) {
       return null;
     }
     const adjLocation = adjustmentLocationMap.get(userId);
@@ -581,7 +594,9 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
                     <td className="px-4 py-3 text-gray-600">
                       {log
                         ? `${log.scheduled_start?.slice(0, 5)} - ${log.scheduled_end?.slice(0, 5)}`
-                        : "-"}
+                        : scheduleTimeMap.has(user.id)
+                          ? `${scheduleTimeMap.get(user.id)!.start.slice(0, 5)} - ${scheduleTimeMap.get(user.id)!.end.slice(0, 5)}`
+                          : "-"}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {getTzLabel(tz)}
