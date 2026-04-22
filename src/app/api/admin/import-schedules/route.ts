@@ -87,6 +87,7 @@ export async function POST(request: Request) {
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
+  const effectiveFrom = (formData.get("effective_from") as string) || new Date().toISOString().split("T")[0];
 
   if (!file) {
     return Response.json({ error: "No file provided" }, { status: 400 });
@@ -103,7 +104,6 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const today = new Date().toISOString().split("T")[0];
 
   const results = {
     updated: 0,
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
           end_time: hasTime ? day.end : "00:00",
           is_rest_day: isRest,
           work_location: hasTime ? day.location : "office",
-          effective_from: today,
+          effective_from: effectiveFrom,
         });
       }
 
@@ -169,7 +169,7 @@ export async function POST(request: Request) {
           end_time: "00:00",
           is_rest_day: true,
           work_location: "office",
-          effective_from: today,
+          effective_from: effectiveFrom,
         });
       }
 

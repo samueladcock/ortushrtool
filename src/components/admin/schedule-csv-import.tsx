@@ -42,6 +42,9 @@ export function ScheduleCsvImport({
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  const [effectiveFrom, setEffectiveFrom] = useState(
+    new Date().toISOString().split("T")[0]
+  );
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState("");
 
@@ -91,6 +94,7 @@ export function ScheduleCsvImport({
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("effective_from", effectiveFrom);
 
       const response = await fetch("/api/admin/import-schedules", {
         method: "POST",
@@ -144,6 +148,15 @@ export function ScheduleCsvImport({
             <Download size={14} />
             Download
           </button>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-gray-500">Effective from:</label>
+            <input
+              type="date"
+              value={effectiveFrom}
+              onChange={(e) => setEffectiveFrom(e.target.value)}
+              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+            />
+          </div>
           <label
             className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white shadow-sm ${
               importing
