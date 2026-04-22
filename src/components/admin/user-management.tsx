@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Pencil, Save, X, Calendar, Trash2, Plus, KeyRound, Palmtree } from "lucide-react";
+import { Pencil, Save, X, Calendar, Trash2, Plus, KeyRound, Palmtree, Download } from "lucide-react";
 import { EmployeeLeaveTypesModal } from "./employee-leave-types";
 import type { User, UserRole, HolidayCountry } from "@/types/database";
 import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
@@ -174,6 +174,91 @@ export function UserManagement({
     }
   };
 
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadUsers = async () => {
+    setDownloading(true);
+    const supabase = createClient();
+
+    // Fetch current schedules for all users
+    const today = new Date().toISOString().split("T")[0];
+    const { data: schedules } = await supabase
+      .from("schedules")
+      .select("employee_id, day_of_week, start_time, end_time, is_rest_day, work_location")
+      .lte("effective_from", today)
+      .or(`effective_until.is.null,effective_until.gte.${today}`);
+
+    // Build schedule map: userId -> dayOfWeek -> schedule string
+    const scheduleMap = new Map<string, Map<number, string>>();
+    for (const s of schedules ?? []) {
+      if (!scheduleMap.has(s.employee_id)) scheduleMap.set(s.employee_id, new Map());
+      const userMap = scheduleMap.get(s.employee_id)!;
+      // Keep most recent if duplicates
+      if (!userMap.has(s.day_of_week)) {
+        if (s.is_rest_day) {
+          userMap.set(s.day_of_week, "Rest");
+        } else {
+          const loc = s.work_location === "online" ? "Online" : "Office";
+          userMap.set(s.day_of_week, `${loc} - ${s.start_time.slice(0, 5)} - ${s.end_time.slice(0, 5)}`);
+        }
+      }
+    }
+
+    const headers = [
+      "Name",
+      "Email",
+      "Role",
+      "Department",
+      "Manager Name",
+      "Country",
+      "Desktime ID",
+      "Birthday",
+      "Hire Date",
+      "End Date",
+      "Active",
+      "M",
+      "T",
+      "W",
+      "TH",
+      "F",
+    ];
+    const csvRows = [headers.join(",")];
+
+    for (const u of users) {
+      const managerName = users.find((m) => m.id === u.manager_id)?.full_name ?? "";
+      const userSchedule = scheduleMap.get(u.id);
+      csvRows.push(
+        [
+          `"${u.full_name ?? ""}"`,
+          u.email,
+          u.role,
+          `"${u.department ?? ""}"`,
+          `"${managerName}"`,
+          u.holiday_country,
+          u.desktime_employee_id ?? "",
+          u.birthday ?? "",
+          u.hire_date ?? "",
+          u.end_date ?? "",
+          u.is_active ? "Yes" : "No",
+          userSchedule?.get(0) ?? "",
+          userSchedule?.get(1) ?? "",
+          userSchedule?.get(2) ?? "",
+          userSchedule?.get(3) ?? "",
+          userSchedule?.get(4) ?? "",
+        ].join(",")
+      );
+    }
+
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `users-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDownloading(false);
+  };
+
   const roleOptions: UserRole[] =
     currentUserRole === "super_admin"
       ? ["employee", "manager", "hr_admin", "super_admin"]
@@ -189,6 +274,14 @@ export function UserManagement({
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
+        <button
+          onClick={downloadUsers}
+          disabled={downloading}
+          className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-95 disabled:opacity-50"
+        >
+          <Download size={16} />
+          {downloading ? "Downloading..." : "Download CSV"}
+        </button>
         <button
           onClick={() => setShowAddModal(true)}
           className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95"
