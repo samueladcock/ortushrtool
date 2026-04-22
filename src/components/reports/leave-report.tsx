@@ -16,6 +16,7 @@ interface LeaveRow {
   employee_name: string;
   employee_email: string;
   department: string;
+  manager_name: string;
   leave_type: string;
   leave_duration: string;
   start_date: string;
@@ -56,7 +57,7 @@ export function LeaveReport({ users }: { users: UserOption[] }) {
   });
   const [selectedUser, setSelectedUser] = useState("");
   const [selectedType, setSelectedType] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("approved");
+  const [selectedStatus, setSelectedStatus] = useState("");
   const [rows, setRows] = useState<LeaveRow[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -67,7 +68,7 @@ export function LeaveReport({ users }: { users: UserOption[] }) {
     let query = supabase
       .from("leave_requests")
       .select(
-        "*, employee:users!leave_requests_employee_id_fkey(full_name, email, department), reviewer:users!leave_requests_reviewed_by_fkey(full_name)"
+        "*, employee:users!leave_requests_employee_id_fkey(full_name, email, department, manager_id), reviewer:users!leave_requests_reviewed_by_fkey(full_name)"
       )
       .lte("start_date", endDate)
       .gte("end_date", startDate)
@@ -79,9 +80,13 @@ export function LeaveReport({ users }: { users: UserOption[] }) {
 
     const { data } = await query;
 
+    // Build manager name lookup
+    const userMap = new Map(users.map((u) => [u.id, u.full_name || u.email]));
+
     const mapped: LeaveRow[] = (data ?? []).map((r: Record<string, unknown>) => {
-      const emp = r.employee as { full_name: string; email: string; department: string | null } | null;
+      const emp = r.employee as { full_name: string; email: string; department: string | null; manager_id: string | null } | null;
       const rev = r.reviewer as { full_name: string } | null;
+      const managerName = emp?.manager_id ? (userMap.get(emp.manager_id) ?? "") : "";
       const duration = r.leave_duration === "half_day"
         ? `Half Day (${(r.half_day_period as string)?.toUpperCase() || ""})`
         : "Full Day";
@@ -91,6 +96,7 @@ export function LeaveReport({ users }: { users: UserOption[] }) {
         employee_name: emp?.full_name || "",
         employee_email: emp?.email || "",
         department: emp?.department || "",
+        manager_name: managerName,
         leave_type: LEAVE_LABELS[r.leave_type as string] ?? (r.leave_type as string),
         leave_duration: duration,
         start_date: r.start_date as string,
@@ -117,34 +123,39 @@ export function LeaveReport({ users }: { users: UserOption[] }) {
       "Employee",
       "Email",
       "Department",
+      "Manager",
       "Leave Type",
       "Duration",
       "Start Date",
       "End Date",
       "Reason",
-      "Status",
-      "Reviewed By",
+      "Approval Status",
+      "Pending Approval By",
+      "Approved/Rejected By",
+      "Date Approved/Rejected",
       "Reviewer Notes",
-      "Reviewed At",
-      "Submitted At",
+      "Date Submitted",
     ];
     const csvRows = [headers.join(",")];
 
     rows.forEach((r) => {
+      const pendingApprovalBy = r.status === "pending" ? r.manager_name : "";
       csvRows.push(
         [
           `"${r.employee_name}"`,
           r.employee_email,
           `"${r.department}"`,
+          `"${r.manager_name}"`,
           `"${r.leave_type}"`,
           `"${r.leave_duration}"`,
           r.start_date,
           r.end_date,
           `"${r.reason.replace(/"/g, '""')}"`,
           r.status,
+          `"${pendingApprovalBy}"`,
           `"${r.reviewer_name}"`,
-          `"${r.reviewer_notes.replace(/"/g, '""')}"`,
           r.reviewed_at ? new Date(r.reviewed_at).toISOString().split("T")[0] : "",
+          `"${r.reviewer_notes.replace(/"/g, '""')}"`,
           new Date(r.created_at).toISOString().split("T")[0],
         ].join(",")
       );
@@ -263,8 +274,10 @@ export function LeaveReport({ users }: { users: UserOption[] }) {
                   <th className="px-6 py-3 font-medium text-gray-600">Duration</th>
                   <th className="px-6 py-3 font-medium text-gray-600">Dates</th>
                   <th className="px-6 py-3 font-medium text-gray-600">Reason</th>
-                  <th className="px-6 py-3 font-medium text-gray-600">Status</th>
-                  <th className="px-6 py-3 font-medium text-gray-600">Reviewed By</th>
+                  <th className="px-6 py-3 font-medium text-gray-600">Approval Status</th>
+                  <th className="px-6 py-3 font-medium text-gray-600">Pending Approval By</th>
+                  <th className="px-6 py-3 font-medium text-gray-600">Approved By</th>
+                  <th className="px-6 py-3 font-medium text-gray-600">Date Approved</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -293,7 +306,13 @@ export function LeaveReport({ users }: { users: UserOption[] }) {
                         {r.status}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-gray-700">
+                      {r.status === "pending" ? r.manager_name || "—" : "—"}
+                    </td>
                     <td className="px-6 py-4 text-gray-700">{r.reviewer_name || "—"}</td>
+                    <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
+                      {r.reviewed_at ? new Date(r.reviewed_at).toISOString().split("T")[0] : "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
