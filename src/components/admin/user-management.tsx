@@ -44,6 +44,9 @@ export function UserManagement({
   const startEdit = (user: User) => {
     setEditingId(user.id);
     setEditForm({
+      first_name: user.first_name,
+      middle_name: user.middle_name,
+      last_name: user.last_name,
       full_name: user.full_name,
       role: user.role,
       department: user.department,
@@ -62,9 +65,13 @@ export function UserManagement({
     if (!editingId) return;
     const supabase = createClient();
 
+    const fullName = [editForm.first_name, editForm.middle_name, editForm.last_name]
+      .filter(Boolean)
+      .join(" ");
+
     await supabase
       .from("users")
-      .update(editForm)
+      .update({ ...editForm, full_name: fullName })
       .eq("id", editingId);
 
     setEditingId(null);
@@ -331,7 +338,9 @@ export function UserManagement({
                     className="rounded border-gray-300"
                   />
                 </th>
-                <th className="px-4 py-3 font-medium text-gray-600">Name</th>
+                <th className="px-4 py-3 font-medium text-gray-600">First Name</th>
+                <th className="px-4 py-3 font-medium text-gray-600">Middle Name</th>
+                <th className="px-4 py-3 font-medium text-gray-600">Last Name</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Email</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Role</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Department</th>
@@ -362,14 +371,40 @@ export function UserManagement({
                     <td className="px-4 py-3">
                       {isEditing ? (
                         <input
-                          value={editForm.full_name ?? ""}
+                          value={editForm.first_name ?? ""}
                           onChange={(e) =>
-                            setEditForm({ ...editForm, full_name: e.target.value })
+                            setEditForm({ ...editForm, first_name: e.target.value })
                           }
                           className="w-full rounded border px-2 py-1 text-sm"
                         />
                       ) : (
-                        user.full_name || "-"
+                        user.first_name || "-"
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isEditing ? (
+                        <input
+                          value={editForm.middle_name ?? ""}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, middle_name: e.target.value })
+                          }
+                          className="w-full rounded border px-2 py-1 text-sm"
+                        />
+                      ) : (
+                        user.middle_name || "-"
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isEditing ? (
+                        <input
+                          value={editForm.last_name ?? ""}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, last_name: e.target.value })
+                          }
+                          className="w-full rounded border px-2 py-1 text-sm"
+                        />
+                      ) : (
+                        user.last_name || "-"
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{user.email}</td>
@@ -688,7 +723,9 @@ function AddUserModal({
   onSuccess: () => void;
 }) {
   const [form, setForm] = useState({
-    full_name: "",
+    first_name: "",
+    middle_name: "",
+    last_name: "",
     email: "",
     role: "employee" as UserRole,
     department: "",
@@ -727,11 +764,16 @@ function AddUserModal({
           ]
         : null;
 
+      const fullName = [form.first_name, form.middle_name, form.last_name]
+        .filter(Boolean)
+        .join(" ");
+
       const res = await fetch("/api/admin/create-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          full_name: fullName,
           manager_id: form.manager_id || null,
           desktime_employee_id: form.desktime_employee_id || null,
           department: form.department || null,
@@ -772,8 +814,16 @@ function AddUserModal({
           {/* User details */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Name</label>
-              <input type="text" required value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} className={inputClass} />
+              <label className="mb-1 block text-sm font-medium text-gray-700">First Name</label>
+              <input type="text" required value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} className={inputClass} />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Middle Name</label>
+              <input type="text" value={form.middle_name} onChange={(e) => setForm({ ...form, middle_name: e.target.value })} className={inputClass} />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Last Name</label>
+              <input type="text" required value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} className={inputClass} />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Email</label>
