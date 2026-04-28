@@ -38,7 +38,41 @@ interface ScheduleRow {
 
 interface AdjustmentRow {
   employee_id: string;
+  requested_date: string;
   requested_work_location: string | null;
+}
+
+interface LeaveRow {
+  employee_id: string;
+  start_date: string;
+  end_date: string;
+}
+
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function shiftDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function dowFromDate(dateStr: string): number {
+  const d = new Date(dateStr + "T00:00:00");
+  return (d.getDay() + 6) % 7; // Monday=0
+}
+
+function eachDateInRange(from: string, to: string): string[] {
+  const out: string[] = [];
+  let cur = new Date(from + "T12:00:00");
+  const end = new Date(to + "T12:00:00");
+  while (cur <= end) {
+    out.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
 }
 
 function formatDisplayDate(dateStr: string): string {
@@ -215,16 +249,16 @@ function HeaderFilter({
   );
 }
 
+const PAGE_SIZE = 50;
+
 export function AllAttendanceTable({ users }: { users: UserRow[] }) {
   const [search, setSearch] = useState("");
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  });
+  const [fromDate, setFromDate] = useState<string>(() => todayStr());
+  const [toDate, setToDate] = useState<string>(() => todayStr());
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
   const [adjustments, setAdjustments] = useState<AdjustmentRow[]>([]);
-  const [onLeaveSet, setOnLeaveSet] = useState<Set<string>>(new Set());
+  const [leaves, setLeaves] = useState<LeaveRow[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Column filters
@@ -233,102 +267,115 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
   const [statusFilter, setStatusFilter] = useState("");
   const [tzFilter, setTzFilter] = useState("");
 
-  const isToday = useMemo(() => {
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    return selectedDate === todayStr;
-  }, [selectedDate]);
+  // Pagination
+  const [pageIndex, setPageIndex] = useState(0);
+
+  const isSingleDate = fromDate === toDate;
+  const today = todayStr();
+  const isSingleDateToday = isSingleDate && fromDate === today;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
 
-    // Compute day_of_week for the selected date (Monday=0)
-    const dateObj = new Date(selectedDate + "T00:00:00");
-    const dayOfWeek = (dateObj.getDay() + 6) % 7;
+    // Day-of-week values that occur in the range (max 7)
+    const dows = new Set<number>();
+    for (const d of eachDateInRange(fromDate, toDate)) {
+      dows.add(dowFromDate(d));
+      if (dows.size === 7) break;
+    }
 
     const [logsResult, schedulesResult, adjustmentsResult, leavesResult] = await Promise.all([
       supabase
         .from("attendance_logs")
         .select("*")
-        .eq("date", selectedDate),
+        .gte("date", fromDate)
+        .lte("date", toDate),
       supabase
         .from("schedules")
         .select("employee_id, day_of_week, work_location, is_rest_day, start_time, end_time")
-        .eq("day_of_week", dayOfWeek)
-        .lte("effective_from", selectedDate)
-        .or(`effective_until.is.null,effective_until.gte.${selectedDate}`),
+        .in("day_of_week", [...dows])
+        .lte("effective_from", toDate)
+        .or(`effective_until.is.null,effective_until.gte.${fromDate}`),
       supabase
         .from("schedule_adjustments")
-        .select("employee_id, requested_work_location")
-        .eq("requested_date", selectedDate)
+        .select("employee_id, requested_date, requested_work_location")
+        .gte("requested_date", fromDate)
+        .lte("requested_date", toDate)
         .eq("status", "approved"),
       supabase
         .from("leave_requests")
-        .select("employee_id")
+        .select("employee_id, start_date, end_date")
         .eq("status", "approved")
-        .lte("start_date", selectedDate)
-        .gte("end_date", selectedDate),
+        .lte("start_date", toDate)
+        .gte("end_date", fromDate),
     ]);
 
     setLogs(logsResult.data ?? []);
     setSchedules(schedulesResult.data ?? []);
     setAdjustments(adjustmentsResult.data ?? []);
-    setOnLeaveSet(new Set((leavesResult.data ?? []).map((l) => l.employee_id)));
+    setLeaves(leavesResult.data ?? []);
     setLoading(false);
-  }, [selectedDate]);
+  }, [fromDate, toDate]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Build lookup: employeeId -> log
+  // logs keyed by `${employee_id}|${date}`
   const logMap = useMemo(() => {
     const map = new Map<string, AttendanceLog>();
     for (const log of logs) {
-      map.set(log.employee_id, log);
+      map.set(`${log.employee_id}|${log.date}`, log);
     }
     return map;
   }, [logs]);
 
-  // Build lookup: employeeId -> work_location from base schedule
-  const scheduleLocationMap = useMemo(() => {
-    const map = new Map<string, string>();
+  // base schedule keyed by `${employee_id}|${day_of_week}`
+  const scheduleByEmpDow = useMemo(() => {
+    const map = new Map<string, ScheduleRow>();
     for (const s of schedules) {
-      if (!s.is_rest_day) {
-        map.set(s.employee_id, s.work_location);
-      }
+      map.set(`${s.employee_id}|${s.day_of_week}`, s);
     }
     return map;
   }, [schedules]);
 
-  // Build lookup: employeeId -> adjusted work_location
-  const adjustmentLocationMap = useMemo(() => {
+  // approved adjustments keyed by `${employee_id}|${requested_date}`
+  const adjustmentByEmpDate = useMemo(() => {
     const map = new Map<string, string | null>();
     for (const a of adjustments) {
-      map.set(a.employee_id, a.requested_work_location);
+      map.set(`${a.employee_id}|${a.requested_date}`, a.requested_work_location);
     }
     return map;
   }, [adjustments]);
 
-  // Build lookup: employeeId -> schedule times from base schedule
-  const scheduleTimeMap = useMemo(() => {
-    const map = new Map<string, { start: string; end: string }>();
-    for (const s of schedules) {
-      if (!s.is_rest_day && s.start_time && s.end_time) {
-        map.set(s.employee_id, { start: s.start_time, end: s.end_time });
+  // expand each leave into its individual covered dates within the range
+  const onLeaveByEmpDate = useMemo(() => {
+    const set = new Set<string>();
+    for (const lv of leaves) {
+      const start = lv.start_date < fromDate ? fromDate : lv.start_date;
+      const end = lv.end_date > toDate ? toDate : lv.end_date;
+      for (const d of eachDateInRange(start, end)) {
+        set.add(`${lv.employee_id}|${d}`);
       }
     }
-    return map;
-  }, [schedules]);
+    return set;
+  }, [leaves, fromDate, toDate]);
 
-  function getLocation(userId: string, status: string): string | null {
-    if (["rest_day", "on_leave", "holiday"].includes(status)) {
-      return null;
-    }
-    const adjLocation = adjustmentLocationMap.get(userId);
+  function getLocation(userId: string, date: string, status: string): string | null {
+    if (["rest_day", "on_leave", "holiday"].includes(status)) return null;
+    const adjLocation = adjustmentByEmpDate.get(`${userId}|${date}`);
     if (adjLocation) return adjLocation;
-    return scheduleLocationMap.get(userId) ?? null;
+    const sched = scheduleByEmpDow.get(`${userId}|${dowFromDate(date)}`);
+    return sched && !sched.is_rest_day ? sched.work_location : null;
+  }
+
+  function getScheduleTimes(userId: string, date: string): { start: string; end: string } | null {
+    const sched = scheduleByEmpDow.get(`${userId}|${dowFromDate(date)}`);
+    if (sched && !sched.is_rest_day && sched.start_time && sched.end_time) {
+      return { start: sched.start_time, end: sched.end_time };
+    }
+    return null;
   }
 
   // Derive unique filter options from the data
@@ -353,94 +400,136 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
     { value: "online", label: "Online" },
   ];
 
-  const statusOptions = useMemo(() => {
-    // Collect all display statuses currently visible
-    const statuses = new Set<string>();
-    for (const user of users) {
-      const log = logMap.get(user.id);
-      const tz = user.timezone || "Asia/Manila";
-      const ds = getDisplayStatus(log, tz, isToday);
-      statuses.add(ds);
+  const userById = useMemo(() => {
+    const map = new Map<string, UserRow>();
+    for (const u of users) map.set(u.id, u);
+    return map;
+  }, [users]);
+
+  // Build the raw row set: in single-date mode show every user (including
+  // no_data). In range mode, show only existing logs.
+  const rawRows = useMemo(() => {
+    if (isSingleDate) {
+      return users.map((user) => ({
+        user,
+        log: logMap.get(`${user.id}|${fromDate}`),
+        date: fromDate,
+      }));
     }
+    const out: { user: UserRow; log: AttendanceLog | undefined; date: string }[] = [];
+    for (const log of logs) {
+      const user = userById.get(log.employee_id);
+      if (!user) continue;
+      out.push({ user, log, date: log.date });
+    }
+    out.sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) ||
+        (a.user.full_name || "").localeCompare(b.user.full_name || "")
+    );
+    return out;
+  }, [isSingleDate, users, userById, logMap, logs, fromDate]);
+
+  function rowDisplayStatus(row: { user: UserRow; log: AttendanceLog | undefined; date: string }): string {
+    const tz = row.user.timezone || "Asia/Manila";
+    const raw = getDisplayStatus(row.log, tz, row.date === today);
+    if (
+      onLeaveByEmpDate.has(`${row.user.id}|${row.date}`) &&
+      !["on_leave", "holiday", "rest_day"].includes(raw)
+    ) {
+      return "on_leave";
+    }
+    return raw;
+  }
+
+  const statusOptions = useMemo(() => {
+    const statuses = new Set<string>();
+    for (const r of rawRows) statuses.add(rowDisplayStatus(r));
     return [...statuses]
       .filter((s) => s !== "no_data")
       .sort()
-      .map((s) => ({
-        value: s,
-        label: statusLabels[s] ?? s,
-      }));
-  }, [users, logMap, isToday]);
+      .map((s) => ({ value: s, label: statusLabels[s] ?? s }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawRows, onLeaveByEmpDate]);
 
-  // Filter users by search + column filters
-  const filteredUsers = useMemo(() => {
-    let result = users;
+  const filteredRows = useMemo(() => {
+    let result = rawRows;
 
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
-        (u) =>
-          u.full_name.toLowerCase().includes(q) ||
-          u.email.toLowerCase().includes(q)
+        (r) =>
+          r.user.full_name.toLowerCase().includes(q) ||
+          r.user.email.toLowerCase().includes(q)
       );
     }
 
     if (countryFilter) {
-      result = result.filter((u) => u.holiday_country === countryFilter);
+      result = result.filter((r) => r.user.holiday_country === countryFilter);
     }
 
     if (tzFilter) {
-      result = result.filter((u) => (u.timezone || "Asia/Manila") === tzFilter);
+      result = result.filter(
+        (r) => (r.user.timezone || "Asia/Manila") === tzFilter
+      );
     }
 
     if (statusFilter) {
-      result = result.filter((u) => {
-        const log = logMap.get(u.id);
-        const tz = u.timezone || "Asia/Manila";
-        return getDisplayStatus(log, tz, isToday) === statusFilter;
-      });
+      result = result.filter((r) => rowDisplayStatus(r) === statusFilter);
     }
 
     if (locationFilter) {
-      result = result.filter((u) => {
-        const log = logMap.get(u.id);
-        const tz = u.timezone || "Asia/Manila";
-        const ds = getDisplayStatus(log, tz, isToday);
-        return getLocation(u.id, ds) === locationFilter;
+      result = result.filter((r) => {
+        const ds = rowDisplayStatus(r);
+        return getLocation(r.user.id, r.date, ds) === locationFilter;
       });
     }
 
     return result;
-  }, [users, search, countryFilter, tzFilter, statusFilter, locationFilter, logMap, isToday]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawRows, search, countryFilter, tzFilter, statusFilter, locationFilter, onLeaveByEmpDate, scheduleByEmpDow, adjustmentByEmpDate]);
+
+  // Reset to page 1 when filters / dates change
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search, countryFilter, locationFilter, statusFilter, tzFilter, fromDate, toDate]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const safePageIndex = Math.min(pageIndex, totalPages - 1);
+  const visibleRows = filteredRows.slice(
+    safePageIndex * PAGE_SIZE,
+    (safePageIndex + 1) * PAGE_SIZE
+  );
 
   const goDay = (offset: number) => {
-    const d = new Date(selectedDate + "T12:00:00");
-    d.setDate(d.getDate() + offset);
-    setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    setFromDate((f) => shiftDate(f, offset));
+    setToDate((t) => shiftDate(t, offset));
+  };
+  const resetToToday = () => {
+    setFromDate(today);
+    setToDate(today);
   };
 
-  // Stats
+  // Stats from filtered rows
   const stats = useMemo(() => {
-    let onTime = 0, late = 0, early = 0, absent = 0, noData = 0, onLeave = 0, holiday = 0, working = 0, notStarted = 0;
-    for (const user of filteredUsers) {
-      const log = logMap.get(user.id);
-      const tz = user.timezone || "Asia/Manila";
-      const rawStatus = getDisplayStatus(log, tz, isToday);
-      const displayStatus = onLeaveSet.has(user.id) && !["on_leave", "holiday", "rest_day"].includes(rawStatus)
-        ? "on_leave"
-        : rawStatus;
-      if (displayStatus === "on_time") onTime++;
-      else if (displayStatus === "late_arrival") late++;
-      else if (displayStatus === "early_departure") early++;
-      else if (displayStatus === "late_and_early") { late++; early++; }
-      else if (displayStatus === "absent") absent++;
-      else if (displayStatus === "on_leave") onLeave++;
-      else if (displayStatus === "holiday") holiday++;
-      else if (displayStatus === "working") working++;
-      else if (displayStatus === "not_started") notStarted++;
+    let onTime = 0, late = 0, early = 0, absent = 0, noData = 0,
+      onLeave = 0, holiday = 0, working = 0, notStarted = 0;
+    for (const r of filteredRows) {
+      const ds = rowDisplayStatus(r);
+      if (ds === "on_time") onTime++;
+      else if (ds === "late_arrival") late++;
+      else if (ds === "early_departure") early++;
+      else if (ds === "late_and_early") { late++; early++; }
+      else if (ds === "absent") absent++;
+      else if (ds === "on_leave") onLeave++;
+      else if (ds === "holiday") holiday++;
+      else if (ds === "working") working++;
+      else if (ds === "not_started") notStarted++;
       else noData++;
     }
     return { onTime, late, early, absent, noData, onLeave, holiday, working, notStarted };
-  }, [filteredUsers, logMap, onLeaveSet, isToday]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredRows, onLeaveByEmpDate]);
 
   const hasActiveFilters = countryFilter || locationFilter || statusFilter || tzFilter;
 
@@ -448,6 +537,7 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
     const headers = [
       "Employee",
       "Email",
+      ...(isSingleDate ? [] : ["Date"]),
       "Country",
       "Location",
       "Schedule",
@@ -460,40 +550,40 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
       "DeskTime (s)",
       "Productive (s)",
     ];
-    const rows = filteredUsers.map((user) => {
-      const log = logMap.get(user.id);
+    const rows = filteredRows.map((r) => {
+      const { user, log, date } = r;
       const tz = user.timezone || "Asia/Manila";
       const raw = log?.raw_response as Record<string, unknown> | null;
       const desktimeSeconds = raw?.desktimeTime as number | undefined;
       const productiveSeconds = raw?.productiveTime as number | undefined;
-      const rawStatus = getDisplayStatus(log, tz, isToday);
-      const displayStatus =
-        onLeaveSet.has(user.id) &&
-        !["on_leave", "holiday", "rest_day"].includes(rawStatus)
-          ? "on_leave"
-          : rawStatus;
-      const location = getLocation(user.id, displayStatus);
+      const ds = rowDisplayStatus(r);
+      const location = getLocation(user.id, date, ds);
+      const schedTimes = getScheduleTimes(user.id, date);
       const schedule =
         log?.scheduled_start && log?.scheduled_end
           ? `${log.scheduled_start.slice(0, 5)} - ${log.scheduled_end.slice(0, 5)}`
-          : scheduleTimeMap.has(user.id)
-            ? `${scheduleTimeMap.get(user.id)!.start.slice(0, 5)} - ${scheduleTimeMap.get(user.id)!.end.slice(0, 5)}`
+          : schedTimes
+            ? `${schedTimes.start.slice(0, 5)} - ${schedTimes.end.slice(0, 5)}`
             : "";
-      return [
+      const cells: (string | number)[] = [
         user.full_name || user.email.split("@")[0],
         user.email,
+      ];
+      if (!isSingleDate) cells.push(date);
+      cells.push(
         HOLIDAY_COUNTRY_LABELS[user.holiday_country] ?? user.holiday_country,
         location ?? "",
         schedule,
         getTzLabel(tz),
         log ? formatClockTime(log.clock_in, tz) : "",
         log ? formatClockTime(log.clock_out, tz) : "",
-        displayStatus === "no_data" ? "" : (statusLabels[displayStatus] ?? displayStatus),
+        ds === "no_data" ? "" : (statusLabels[ds] ?? ds),
         log?.late_minutes ?? "",
         log?.early_departure_minutes ?? "",
         desktimeSeconds ?? "",
-        productiveSeconds ?? "",
-      ];
+        productiveSeconds ?? ""
+      );
+      return cells;
     });
 
     const escape = (cell: string | number) => {
@@ -507,7 +597,10 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `attendance-${selectedDate}.csv`;
+    const filename = isSingleDate
+      ? `attendance-${fromDate}.csv`
+      : `attendance-${fromDate}_to_${toDate}.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -547,7 +640,7 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
           <button
             type="button"
             onClick={exportCSV}
-            disabled={filteredUsers.length === 0}
+            disabled={filteredRows.length === 0}
             className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40"
           >
             <Download size={14} />
@@ -557,29 +650,53 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
             type="button"
             onClick={() => goDay(-1)}
             className="relative z-10 rounded-lg border border-gray-300 p-2.5 hover:bg-gray-100 active:bg-gray-200"
+            title="Shift dates back one day"
           >
             <ChevronLeft size={18} />
           </button>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm [&::-webkit-calendar-picker-indicator]:opacity-50"
-          />
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={fromDate}
+              max={toDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm [&::-webkit-calendar-picker-indicator]:opacity-50"
+            />
+            <span className="text-xs text-gray-400">to</span>
+            <input
+              type="date"
+              value={toDate}
+              min={fromDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm [&::-webkit-calendar-picker-indicator]:opacity-50"
+            />
+          </div>
           <button
             type="button"
             onClick={() => goDay(1)}
             className="relative z-10 rounded-lg border border-gray-300 p-2.5 hover:bg-gray-100 active:bg-gray-200"
+            title="Shift dates forward one day"
           >
             <ChevronRight size={18} />
           </button>
+          {(fromDate !== today || toDate !== today) && (
+            <button
+              type="button"
+              onClick={resetToToday}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100"
+            >
+              Today
+            </button>
+          )}
         </div>
       </div>
 
       {/* Date display & stats */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-lg font-semibold text-gray-900">
-          {formatDisplayDate(selectedDate)}
+          {isSingleDate
+            ? formatDisplayDate(fromDate)
+            : `${formatDisplayDate(fromDate)} → ${formatDisplayDate(toDate)}`}
         </h2>
         <div className="flex gap-3 text-sm">
           <span className="rounded-full bg-green-100 px-3 py-1 text-green-700 font-medium">
@@ -631,6 +748,9 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-left">
                 <th className="px-4 py-3 font-medium text-gray-600">Employee</th>
+                {!isSingleDate && (
+                  <th className="px-4 py-3 font-medium text-gray-600">Date</th>
+                )}
                 <th className="px-4 py-3">
                   <HeaderFilter label="Country" options={countryOptions} value={countryFilter} onChange={setCountryFilter} />
                 </th>
@@ -653,24 +773,27 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredUsers.map((user) => {
-                const log = logMap.get(user.id);
+              {visibleRows.map((r) => {
+                const { user, log, date } = r;
                 const tz = user.timezone || "Asia/Manila";
                 const raw = log?.raw_response as Record<string, unknown> | null;
                 const desktimeSeconds = raw?.desktimeTime as number | undefined;
                 const productiveSeconds = raw?.productiveTime as number | undefined;
-                const rawStatus = getDisplayStatus(log, tz, isToday);
-                // Override with on_leave if employee has an approved leave for this date
-                const displayStatus = onLeaveSet.has(user.id) && !["on_leave", "holiday", "rest_day"].includes(rawStatus)
-                  ? "on_leave"
-                  : rawStatus;
-                const location = getLocation(user.id, displayStatus);
+                const isRowToday = date === today;
+                const ds = rowDisplayStatus(r);
+                const location = getLocation(user.id, date, ds);
+                const schedTimes = getScheduleTimes(user.id, date);
 
                 return (
-                  <tr key={user.id} className="hover:bg-gray-50">
+                  <tr key={`${user.id}|${date}`} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">
                       {user.full_name || user.email.split("@")[0]}
                     </td>
+                    {!isSingleDate && (
+                      <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">
+                        {date}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {HOLIDAY_COUNTRY_LABELS[user.holiday_country] ?? user.holiday_country}
                     </td>
@@ -692,8 +815,8 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
                     <td className="px-4 py-3 text-gray-600">
                       {log?.scheduled_start && log?.scheduled_end
                         ? `${log.scheduled_start.slice(0, 5)} - ${log.scheduled_end.slice(0, 5)}`
-                        : scheduleTimeMap.has(user.id)
-                          ? `${scheduleTimeMap.get(user.id)!.start.slice(0, 5)} - ${scheduleTimeMap.get(user.id)!.end.slice(0, 5)}`
+                        : schedTimes
+                          ? `${schedTimes.start.slice(0, 5)} - ${schedTimes.end.slice(0, 5)}`
                           : "-"}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
@@ -705,8 +828,7 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
                     <td className="px-4 py-3">
                       {(() => {
                         if (!log?.clock_out) return "-";
-                        if (!isToday) return formatClockTime(log.clock_out, tz);
-                        // Show clock out if inactive for more than 1 hour
+                        if (!isRowToday) return formatClockTime(log.clock_out, tz);
                         const msSinceLastActive = Date.now() - new Date(log.clock_out).getTime();
                         const inactiveOver1h = msSinceLastActive > 60 * 60 * 1000;
                         if (inactiveOver1h) return <span className="text-orange-500">{formatClockTime(log.clock_out, tz)}</span>;
@@ -714,11 +836,11 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
                       })()}
                     </td>
                     <td className="px-4 py-3">
-                      {displayStatus !== "no_data" ? (
+                      {ds !== "no_data" ? (
                         <span
-                          className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusStyles[displayStatus] ?? "bg-gray-100"}`}
+                          className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusStyles[ds] ?? "bg-gray-100"}`}
                         >
-                          {statusLabels[displayStatus] ?? displayStatus}
+                          {statusLabels[ds] ?? ds}
                         </span>
                       ) : (
                         <span className="text-gray-400">-</span>
@@ -729,8 +851,7 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
                     </td>
                     <td className="px-4 py-3 text-orange-600">
                       {(() => {
-                        // Don't show early departure minutes if shift hasn't ended yet
-                        if (isToday && log?.scheduled_end) {
+                        if (isRowToday && log?.scheduled_end) {
                           const scheduledEnd = timeToMinutes(log.scheduled_end.slice(0, 5));
                           const nowMinutes = getCurrentTimeMinutes(tz);
                           if (nowMinutes < scheduledEnd) return "-";
@@ -753,6 +874,42 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
           </table>
         )}
       </div>
+
+      {/* Pagination */}
+      {filteredRows.length > 0 && (
+        <div className="flex items-center justify-between gap-3 text-sm text-gray-600">
+          <span>
+            Showing{" "}
+            <strong>{safePageIndex * PAGE_SIZE + 1}</strong>
+            {"–"}
+            <strong>
+              {Math.min((safePageIndex + 1) * PAGE_SIZE, filteredRows.length)}
+            </strong>{" "}
+            of <strong>{filteredRows.length}</strong>
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+              disabled={safePageIndex === 0}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <span className="text-xs text-gray-500">
+              Page {safePageIndex + 1} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPageIndex((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={safePageIndex >= totalPages - 1}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
