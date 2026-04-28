@@ -23,7 +23,7 @@ export default async function TeamAttendancePage() {
           members)
         </p>
       </div>
-      <AllAttendanceTable users={reports ?? []} />
+      <AllAttendanceTable users={reports ?? []} employeePicker="dropdown" />
     </div>
   );
 }

@@ -251,8 +251,19 @@ function HeaderFilter({
 
 const PAGE_SIZE = 50;
 
-export function AllAttendanceTable({ users }: { users: UserRow[] }) {
+interface AllAttendanceTableProps {
+  users: UserRow[];
+  // "search" (default) shows a search-by-name/email input.
+  // "dropdown" shows a single-member dropdown — better for small teams.
+  employeePicker?: "search" | "dropdown";
+}
+
+export function AllAttendanceTable({
+  users,
+  employeePicker = "search",
+}: AllAttendanceTableProps) {
   const [search, setSearch] = useState("");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [fromDate, setFromDate] = useState<string>(() => todayStr());
   const [toDate, setToDate] = useState<string>(() => todayStr());
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
@@ -455,13 +466,15 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
   const filteredRows = useMemo(() => {
     let result = rawRows;
 
-    if (search.trim()) {
+    if (employeePicker === "search" && search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
         (r) =>
           r.user.full_name.toLowerCase().includes(q) ||
           r.user.email.toLowerCase().includes(q)
       );
+    } else if (employeePicker === "dropdown" && selectedEmployeeId) {
+      result = result.filter((r) => r.user.id === selectedEmployeeId);
     }
 
     if (countryFilter) {
@@ -487,12 +500,12 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
 
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawRows, search, countryFilter, tzFilter, statusFilter, locationFilter, onLeaveByEmpDate, scheduleByEmpDow, adjustmentByEmpDate]);
+  }, [rawRows, employeePicker, search, selectedEmployeeId, countryFilter, tzFilter, statusFilter, locationFilter, onLeaveByEmpDate, scheduleByEmpDow, adjustmentByEmpDate]);
 
   // Reset to page 1 when filters / dates change
   useEffect(() => {
     setPageIndex(0);
-  }, [search, countryFilter, locationFilter, statusFilter, tzFilter, fromDate, toDate]);
+  }, [search, selectedEmployeeId, countryFilter, locationFilter, statusFilter, tzFilter, fromDate, toDate]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const safePageIndex = Math.min(pageIndex, totalPages - 1);
@@ -610,22 +623,44 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
       {/* Date navigation & search */}
       <div className="flex flex-wrap items-end gap-4 rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex-1 min-w-[200px]">
-          <label className="block text-xs font-medium text-gray-600">
-            Search
-          </label>
-          <div className="relative mt-1">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-            />
-            <input
-              type="text"
-              placeholder="Filter by name or email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
+          {employeePicker === "search" ? (
+            <>
+              <label className="block text-xs font-medium text-gray-600">
+                Search
+              </label>
+              <div className="relative mt-1">
+                <Search
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  type="text"
+                  placeholder="Filter by name or email..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <label className="block text-xs font-medium text-gray-600">
+                Team Member
+              </label>
+              <select
+                value={selectedEmployeeId}
+                onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">All members</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.full_name || u.email}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {hasActiveFilters && (
