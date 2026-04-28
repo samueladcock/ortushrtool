@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Search, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, ChevronDown, Download } from "lucide-react";
 import { HOLIDAY_COUNTRY_LABELS, type HolidayCountry } from "@/types/database";
 
 interface UserRow {
@@ -444,6 +444,74 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
 
   const hasActiveFilters = countryFilter || locationFilter || statusFilter || tzFilter;
 
+  const exportCSV = () => {
+    const headers = [
+      "Employee",
+      "Email",
+      "Country",
+      "Location",
+      "Schedule",
+      "Timezone",
+      "Clock In",
+      "Clock Out",
+      "Status",
+      "Late (min)",
+      "Early Out (min)",
+      "DeskTime (s)",
+      "Productive (s)",
+    ];
+    const rows = filteredUsers.map((user) => {
+      const log = logMap.get(user.id);
+      const tz = user.timezone || "Asia/Manila";
+      const raw = log?.raw_response as Record<string, unknown> | null;
+      const desktimeSeconds = raw?.desktimeTime as number | undefined;
+      const productiveSeconds = raw?.productiveTime as number | undefined;
+      const rawStatus = getDisplayStatus(log, tz, isToday);
+      const displayStatus =
+        onLeaveSet.has(user.id) &&
+        !["on_leave", "holiday", "rest_day"].includes(rawStatus)
+          ? "on_leave"
+          : rawStatus;
+      const location = getLocation(user.id, displayStatus);
+      const schedule =
+        log?.scheduled_start && log?.scheduled_end
+          ? `${log.scheduled_start.slice(0, 5)} - ${log.scheduled_end.slice(0, 5)}`
+          : scheduleTimeMap.has(user.id)
+            ? `${scheduleTimeMap.get(user.id)!.start.slice(0, 5)} - ${scheduleTimeMap.get(user.id)!.end.slice(0, 5)}`
+            : "";
+      return [
+        user.full_name || user.email.split("@")[0],
+        user.email,
+        HOLIDAY_COUNTRY_LABELS[user.holiday_country] ?? user.holiday_country,
+        location ?? "",
+        schedule,
+        getTzLabel(tz),
+        log ? formatClockTime(log.clock_in, tz) : "",
+        log ? formatClockTime(log.clock_out, tz) : "",
+        displayStatus === "no_data" ? "" : (statusLabels[displayStatus] ?? displayStatus),
+        log?.late_minutes ?? "",
+        log?.early_departure_minutes ?? "",
+        desktimeSeconds ?? "",
+        productiveSeconds ?? "",
+      ];
+    });
+
+    const escape = (cell: string | number) => {
+      const s = String(cell);
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const csv = [headers, ...rows].map((row) => row.map(escape).join(",")).join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `attendance-${selectedDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
       {/* Date navigation & search */}
@@ -476,6 +544,15 @@ export function AllAttendanceTable({ users }: { users: UserRow[] }) {
               Clear filters
             </button>
           )}
+          <button
+            type="button"
+            onClick={exportCSV}
+            disabled={filteredUsers.length === 0}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40"
+          >
+            <Download size={14} />
+            CSV
+          </button>
           <button
             type="button"
             onClick={() => goDay(-1)}
