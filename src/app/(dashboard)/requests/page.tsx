@@ -12,6 +12,7 @@ import { ArrowRightLeft, CalendarOff, CalendarCheck, AlertTriangle } from "lucid
 import { startOfWeek, addDays, format } from "date-fns";
 import { LeaveCsvImport } from "@/components/admin/leave-csv-import";
 import { AdjustmentCsvImport } from "@/components/admin/adjustment-csv-import";
+import { UserNameLink } from "@/components/shared/user-name-link";
 
 export default async function RequestsPage() {
   const user = await getCurrentUser();
@@ -215,7 +216,10 @@ export default async function RequestsPage() {
                     <div className="space-y-1">
                       {isReviewer && adj.employee && (
                         <p className="font-medium text-gray-900">
-                          {adj.employee.full_name || adj.employee.email}
+                          <UserNameLink
+                            userId={adj.employee_id}
+                            name={adj.employee.full_name || adj.employee.email}
+                          />
                         </p>
                       )}
                       <p className="text-sm text-gray-700">
@@ -282,7 +286,10 @@ export default async function RequestsPage() {
                   <div className="space-y-1">
                     {isReviewer && leave.employee && (
                       <p className="font-medium text-gray-900">
-                        {leave.employee.full_name || leave.employee.email}
+                        <UserNameLink
+                          userId={leave.employee_id}
+                          name={leave.employee.full_name || leave.employee.email}
+                        />
                       </p>
                     )}
                     <div className="flex items-center gap-2">
@@ -345,7 +352,10 @@ export default async function RequestsPage() {
                   <div className="space-y-1">
                     {isReviewer && hw.employee && (
                       <p className="font-medium text-gray-900">
-                        {hw.employee.full_name || hw.employee.email}
+                        <UserNameLink
+                          userId={hw.employee_id}
+                          name={hw.employee.full_name || hw.employee.email}
+                        />
                       </p>
                     )}
                     <div className="flex items-center gap-2">
@@ -403,7 +413,10 @@ export default async function RequestsPage() {
                     </span>
                     {isReviewer && adj.employee && (
                       <span className="text-sm font-medium text-gray-900">
-                        {adj.employee.full_name || adj.employee.email}
+                        <UserNameLink
+                          userId={adj.employee_id}
+                          name={adj.employee.full_name || adj.employee.email}
+                        />
                       </span>
                     )}
                   </div>
@@ -435,7 +448,10 @@ export default async function RequestsPage() {
                     </span>
                     {isReviewer && leave.employee && (
                       <span className="text-sm font-medium text-gray-900">
-                        {leave.employee.full_name || leave.employee.email}
+                        <UserNameLink
+                          userId={leave.employee_id}
+                          name={leave.employee.full_name || leave.employee.email}
+                        />
                       </span>
                     )}
                   </div>
@@ -473,7 +489,10 @@ export default async function RequestsPage() {
                     <span className="text-xs text-gray-500">{hw.holiday?.name}</span>
                     {isReviewer && hw.employee && (
                       <span className="text-sm font-medium text-gray-900">
-                        {hw.employee.full_name || hw.employee.email}
+                        <UserNameLink
+                          userId={hw.employee_id}
+                          name={hw.employee.full_name || hw.employee.email}
+                        />
                       </span>
                     )}
                   </div>

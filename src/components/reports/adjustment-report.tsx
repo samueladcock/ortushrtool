@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Download } from "lucide-react";
+import { UserNameLink } from "@/components/shared/user-name-link";
 
 interface UserOption {
   id: string;
@@ -243,7 +244,9 @@ export function AdjustmentReport({ users }: { users: UserOption[] }) {
                     <tr key={s.employee_id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div>
-                          <p className="font-medium text-gray-900">{s.employee_name}</p>
+                          <p className="font-medium text-gray-900">
+                            <UserNameLink userId={s.employee_id} name={s.employee_name} />
+                          </p>
                           <p className="text-xs text-gray-500">{s.employee_email}</p>
                         </div>
                       </td>
@@ -290,7 +293,9 @@ export function AdjustmentReport({ users }: { users: UserOption[] }) {
                   <tr key={i} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-medium text-gray-900">{r.employee_name}</p>
+                        <p className="font-medium text-gray-900">
+                          <UserNameLink userId={r.employee_id} name={r.employee_name} />
+                        </p>
                         <p className="text-xs text-gray-500">{r.employee_email}</p>
                       </div>
                     </td>

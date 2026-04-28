@@ -4,6 +4,7 @@ import { hasRole, formatDate, formatTime } from "@/lib/utils";
 import { AdjustmentActions } from "@/components/adjustments/adjustment-actions";
 import { CancelRequest } from "@/components/shared/cancel-request";
 import Link from "next/link";
+import { UserNameLink } from "@/components/shared/user-name-link";
 
 export default async function AdjustmentsPage() {
   const user = await getCurrentUser();
@@ -62,7 +63,10 @@ export default async function AdjustmentsPage() {
                   <div className="space-y-1">
                     {isReviewer && adj.employee && (
                       <p className="font-medium text-gray-900">
-                        {adj.employee.full_name || adj.employee.email}
+                        <UserNameLink
+                          userId={adj.employee_id}
+                          name={adj.employee.full_name || adj.employee.email}
+                        />
                       </p>
                     )}
                     <p className="text-sm text-gray-700">
@@ -126,7 +130,10 @@ export default async function AdjustmentsPage() {
                 <div className="space-y-1">
                   {isReviewer && adj.employee && (
                     <p className="font-medium text-gray-900">
-                      {adj.employee.full_name || adj.employee.email}
+                      <UserNameLink
+                        userId={adj.employee_id}
+                        name={adj.employee.full_name || adj.employee.email}
+                      />
                     </p>
                   )}
                   <p className="text-sm text-gray-700">

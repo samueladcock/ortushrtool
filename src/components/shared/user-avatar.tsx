@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 function getInitials(name: string): string {
   return name
     .split(" ")
@@ -19,30 +21,43 @@ export function UserAvatar({
   avatarUrl,
   size = "md",
   className = "",
+  userId,
 }: {
   name: string;
   avatarUrl?: string | null;
   size?: keyof typeof sizeClasses;
   className?: string;
+  /** When provided, the avatar becomes a link to /team/{userId}. */
+  userId?: string | null;
 }) {
   const initials = getInitials(name || "?");
   const sizeClass = sizeClasses[size];
 
-  if (avatarUrl) {
-    return (
-      <img
-        src={avatarUrl}
-        alt={name}
-        className={`${sizeClass} shrink-0 rounded-full object-cover ${className}`}
-      />
-    );
-  }
-
-  return (
+  const inner = avatarUrl ? (
+    <img
+      src={avatarUrl}
+      alt={name}
+      className={`${sizeClass} shrink-0 rounded-full object-cover ${className}`}
+    />
+  ) : (
     <div
       className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full bg-blue-100 font-semibold text-blue-700 ${className}`}
     >
       {initials}
     </div>
   );
+
+  if (userId) {
+    return (
+      <Link
+        href={`/team/${userId}`}
+        aria-label={`View ${name}'s profile`}
+        className="inline-block transition-opacity hover:opacity-80"
+      >
+        {inner}
+      </Link>
+    );
+  }
+
+  return inner;
 }

@@ -5,6 +5,7 @@ import { format, startOfWeek, addDays, eachDayOfInterval, isSameDay, parseISO, i
 import { Flag } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatTime, cn } from "@/lib/utils";
+import { UserNameLink } from "@/components/shared/user-name-link";
 import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
 import type {
   User,
@@ -337,7 +338,7 @@ export function WeeklyScheduleTable({ users, schedules, holidays }: Props) {
               <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50/50">
                 <td className="sticky left-0 z-10 bg-white px-4 py-3">
                   <div className="flex items-center gap-1.5 font-medium text-gray-900">
-                    {user.full_name}
+                    <UserNameLink userId={user.id} name={user.full_name} />
                     {getOfficeDaysInWeek(user, new Date()) < 2 && (
                       <span title={`Only ${getOfficeDaysInWeek(user, new Date())} office day(s) this week`}>
                         <Flag size={14} className="fill-red-500 text-red-500" />

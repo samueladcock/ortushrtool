@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Search, ChevronLeft, ChevronRight, ChevronDown, Download } from "lucide-react";
 import { HOLIDAY_COUNTRY_LABELS, type HolidayCountry } from "@/types/database";
+import { UserNameLink } from "@/components/shared/user-name-link";
 
 interface UserRow {
   id: string;
@@ -822,7 +823,10 @@ export function AllAttendanceTable({
                 return (
                   <tr key={`${user.id}|${date}`} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      {user.full_name || user.email.split("@")[0]}
+                      <UserNameLink
+                        userId={user.id}
+                        name={user.full_name || user.email.split("@")[0]}
+                      />
                     </td>
                     {!isSingleDate && (
                       <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">

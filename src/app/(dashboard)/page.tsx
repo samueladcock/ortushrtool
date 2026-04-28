@@ -534,8 +534,8 @@ export default async function DashboardPage() {
                 return (
                   <div key={`${event.type}-${event.userId}-${i}`} className="flex items-center gap-4 px-5 py-3">
                     <div className="relative shrink-0">
-                      <UserAvatar name={event.name} avatarUrl={event.avatarUrl} size="md" />
-                      <div className={`absolute -bottom-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full ${bgColors[event.type]} ring-2 ring-white`}>
+                      <UserAvatar name={event.name} avatarUrl={event.avatarUrl} size="md" userId={event.userId} />
+                      <div className={`absolute -bottom-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full ${bgColors[event.type]} ring-2 ring-white pointer-events-none`}>
                         {icons[event.type]}
                       </div>
                     </div>

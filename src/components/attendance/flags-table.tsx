@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Search } from "lucide-react";
 import { FlagAcknowledge } from "./flag-acknowledge";
+import { UserNameLink } from "@/components/shared/user-name-link";
 
 interface Employee {
   id: string;
@@ -209,7 +210,10 @@ export function FlagsTable({ initialFlags, employees, currentUserId }: Props) {
                 <div className="space-y-1">
                   {flag.employee && (
                     <p className="font-medium text-gray-900">
-                      {flag.employee.full_name || flag.employee.email}
+                      <UserNameLink
+                        userId={flag.employee_id}
+                        name={flag.employee.full_name || flag.employee.email}
+                      />
                     </p>
                   )}
                   <div className="flex items-center gap-2">

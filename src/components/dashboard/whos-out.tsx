@@ -2,6 +2,7 @@
 // Who's Out dashboard component
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { Users, CalendarHeart, X } from "lucide-react";
 import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -168,7 +169,12 @@ export function WhosOut({
                     <div className="flex flex-wrap justify-center gap-1">
                       {visible.map((e, i) => (
                         <div key={i} className="relative group/tip">
-                          <UserAvatar name={e.name} avatarUrl={e.avatarUrl} size="sm" />
+                          <UserAvatar
+                            name={e.name}
+                            avatarUrl={e.avatarUrl}
+                            size="sm"
+                            userId={e.employeeId}
+                          />
                           {/* Tooltip */}
                           <div className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-[10px] text-white opacity-0 transition-opacity group-hover/tip:opacity-100 z-10">
                             {e.name}
@@ -224,13 +230,17 @@ export function WhosOut({
             </div>
             <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
               {expandedDayData.entries.map((e, i) => (
-                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                <Link
+                  key={i}
+                  href={`/team/${e.employeeId}`}
+                  className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-gray-50"
+                >
                   <UserAvatar name={e.name} avatarUrl={e.avatarUrl} size="md" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900 truncate">{e.name}</p>
                     <p className="text-xs text-amber-600">{leaveTypeLabels[e.leaveType] ?? e.leaveType}</p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>

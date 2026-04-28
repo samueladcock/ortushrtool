@@ -19,6 +19,7 @@ import { KpiDefinitionForm } from "./kpi-definition-form";
 import { KpiAssignForm } from "./kpi-assign-form";
 import { KpiUpdateForm } from "./kpi-update-form";
 import { KpiHistoryModal } from "./kpi-history-modal";
+import { UserNameLink } from "@/components/shared/user-name-link";
 
 interface TeamMember {
   id: string;
@@ -341,9 +342,14 @@ export function KpiDashboard({
                       {showTeamColumn && (
                         <td className="px-6 py-4">
                           <p className="font-medium text-gray-900">
-                            {assignment.employee?.full_name ||
-                              assignment.employee?.email ||
-                              "—"}
+                            <UserNameLink
+                              userId={assignment.employee_id}
+                              name={
+                                assignment.employee?.full_name ||
+                                assignment.employee?.email ||
+                                "—"
+                              }
+                            />
                           </p>
                         </td>
                       )}

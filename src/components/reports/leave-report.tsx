@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Download } from "lucide-react";
 import { parseISO } from "date-fns";
+import { UserNameLink } from "@/components/shared/user-name-link";
 
 function countWeekdays(start: string, end: string): number {
   let count = 0;
@@ -27,6 +28,7 @@ interface UserOption {
 
 interface LeaveRow {
   id: string;
+  employee_id: string;
   employee_name: string;
   employee_email: string;
   department: string;
@@ -110,6 +112,7 @@ export function LeaveReport({ users }: { users: UserOption[] }) {
 
       return {
         id: r.id as string,
+        employee_id: r.employee_id as string,
         employee_name: emp?.full_name || "",
         employee_email: emp?.email || "",
         department: emp?.department || "",
@@ -306,7 +309,9 @@ export function LeaveReport({ users }: { users: UserOption[] }) {
                   <tr key={r.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-medium text-gray-900">{r.employee_name}</p>
+                        <p className="font-medium text-gray-900">
+                          <UserNameLink userId={r.employee_id} name={r.employee_name} />
+                        </p>
                         <p className="text-xs text-gray-500">{r.employee_email}</p>
                       </div>
                     </td>

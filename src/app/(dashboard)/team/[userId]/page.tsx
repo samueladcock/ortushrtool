@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatTime } from "@/lib/utils";
+import { formatTime, hasRole } from "@/lib/utils";
 import { DAYS_OF_WEEK } from "@/lib/constants";
 import { HOLIDAY_COUNTRY_LABELS, type HolidayCountry } from "@/types/database";
 import Link from "next/link";
@@ -31,6 +31,8 @@ export default async function TeamMemberPage({
   const currentUser = await getCurrentUser();
   const { userId } = await params;
   const isOwnProfile = currentUser.id === userId;
+  const isAdmin = hasRole(currentUser.role, "hr_admin");
+  const canSeeEndDate = isAdmin || isOwnProfile;
   // Use admin client to bypass RLS — any employee can view any profile
   const supabase = createAdminClient();
 
@@ -194,7 +196,7 @@ export default async function TeamMemberPage({
                 </span>
               </div>
             )}
-            {user.end_date && (
+            {user.end_date && canSeeEndDate && (
               <div className="flex items-center gap-3 text-sm">
                 <CalendarX size={16} className="shrink-0 text-gray-400" />
                 <span className="text-gray-900">
