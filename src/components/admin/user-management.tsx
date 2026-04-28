@@ -38,7 +38,8 @@ export function UserManagement({
     (u) =>
       u.full_name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase()) ||
-      (u.department ?? "").toLowerCase().includes(search.toLowerCase())
+      (u.department ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (u.job_title ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
   const startEdit = (user: User) => {
@@ -50,6 +51,7 @@ export function UserManagement({
       full_name: user.full_name,
       role: user.role,
       department: user.department,
+      job_title: user.job_title,
       manager_id: user.manager_id,
       desktime_employee_id: user.desktime_employee_id,
       holiday_country: user.holiday_country,
@@ -229,6 +231,7 @@ export function UserManagement({
       "Email",
       "Role",
       "Department",
+      "Job Title",
       "Manager Email",
       "Country",
       "Timezone",
@@ -256,6 +259,7 @@ export function UserManagement({
           u.email,
           u.role,
           `"${u.department ?? ""}"`,
+          `"${u.job_title ?? ""}"`,
           managerEmail,
           u.holiday_country,
           getTzLabel(u.timezone || "Asia/Manila").split(" ")[0],
@@ -293,7 +297,7 @@ export function UserManagement({
       <div className="flex flex-wrap items-center gap-3">
         <input
           type="text"
-          placeholder="Search by name, email, or department..."
+          placeholder="Search by name, email, department, or job title..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -344,6 +348,7 @@ export function UserManagement({
                 <th className="px-4 py-3 font-medium text-gray-600">Email</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Role</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Department</th>
+                <th className="px-4 py-3 font-medium text-gray-600">Job Title</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Manager</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Country</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Timezone</th>
@@ -446,6 +451,22 @@ export function UserManagement({
                         />
                       ) : (
                         user.department || "-"
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isEditing ? (
+                        <input
+                          value={editForm.job_title ?? ""}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              job_title: e.target.value || null,
+                            })
+                          }
+                          className="w-full rounded border px-2 py-1 text-sm"
+                        />
+                      ) : (
+                        user.job_title || "-"
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -729,6 +750,7 @@ function AddUserModal({
     email: "",
     role: "employee" as UserRole,
     department: "",
+    job_title: "",
     manager_id: "",
     desktime_employee_id: "",
     holiday_country: "PH" as HolidayCountry,
@@ -777,6 +799,7 @@ function AddUserModal({
           manager_id: form.manager_id || null,
           desktime_employee_id: form.desktime_employee_id || null,
           department: form.department || null,
+          job_title: form.job_title || null,
           schedule,
         }),
       });
@@ -840,6 +863,10 @@ function AddUserModal({
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Department</label>
               <input type="text" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} className={inputClass} />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Job Title</label>
+              <input type="text" value={form.job_title} onChange={(e) => setForm({ ...form, job_title: e.target.value })} className={inputClass} />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Manager</label>
