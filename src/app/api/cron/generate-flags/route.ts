@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { loadAndRender } from "@/lib/email/render";
 import { format, subDays } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
     const { data: logs } = await supabase
       .from("attendance_logs")
       .select(
-        "*, employee:users!attendance_logs_employee_id_fkey(id, full_name, email, manager_id, holiday_country)"
+        "*, employee:users!attendance_logs_employee_id_fkey(id, full_name, email, manager_id, holiday_country, timezone)"
       )
       .eq("date", flagDate)
       .in("status", ["late_arrival", "early_departure", "late_and_early", "absent"]);
@@ -80,6 +81,8 @@ export async function GET(request: Request) {
         deviation: number;
       }[] = [];
 
+      const employeeTz = employee.timezone || "Asia/Manila";
+
       if (
         log.status === "late_arrival" ||
         log.status === "late_and_early"
@@ -88,7 +91,7 @@ export async function GET(request: Request) {
           type: "late_arrival",
           scheduled: log.scheduled_start,
           actual: log.clock_in
-            ? format(new Date(log.clock_in), "HH:mm")
+            ? formatInTimeZone(new Date(log.clock_in), employeeTz, "HH:mm")
             : null,
           deviation: log.late_minutes ?? 0,
         });
@@ -102,7 +105,7 @@ export async function GET(request: Request) {
           type: "early_departure",
           scheduled: log.scheduled_end,
           actual: log.clock_out
-            ? format(new Date(log.clock_out), "HH:mm")
+            ? formatInTimeZone(new Date(log.clock_out), employeeTz, "HH:mm")
             : null,
           deviation: log.early_departure_minutes ?? 0,
         });
