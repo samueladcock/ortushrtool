@@ -830,7 +830,7 @@ export function AllAttendanceTable({
                     <td className="px-4 py-3 font-medium text-gray-900">
                       <UserNameLink
                         userId={user.id}
-                        name={displayName(user)}
+                        name={user.preferred_name || user.first_name || user.full_name.split(/\s+/)[0] || user.email.split("@")[0]}
                       />
                     </td>
                     <td className="px-4 py-3">
