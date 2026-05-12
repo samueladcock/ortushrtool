@@ -7,7 +7,12 @@ import { Trash2 } from "lucide-react";
 
 interface Props {
   requestId: string;
-  table: "schedule_adjustments" | "leave_requests" | "holiday_work_requests";
+  table:
+    | "schedule_adjustments"
+    | "leave_requests"
+    | "holiday_work_requests"
+    | "overtime_requests"
+    | "document_requests";
 }
 
 export function CancelRequest({ requestId, table }: Props) {

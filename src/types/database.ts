@@ -65,9 +65,86 @@ export interface User {
   timezone: string;
   holiday_country: HolidayCountry;
   is_active: boolean;
+  overtime_eligible: boolean;
   created_at: string;
   updated_at: string;
 }
+
+export interface OvertimeRequest {
+  id: string;
+  employee_id: string;
+  requested_date: string;
+  start_time: string;
+  end_time: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  reviewer_notes: string | null;
+  created_at: string;
+}
+
+export interface OvertimeRequestWithEmployee extends OvertimeRequest {
+  employee?: {
+    full_name: string;
+    email: string;
+    preferred_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    manager_id?: string | null;
+  };
+}
+
+export type DocumentRequestType =
+  | "certificate_of_employment"
+  | "purpose_of_travel"
+  | "leave_certificate"
+  | "contract_copy"
+  | "other";
+
+export interface DocumentRequest {
+  id: string;
+  employee_id: string;
+  document_type: DocumentRequestType;
+  custom_document_name: string | null;
+  addressee: string;
+  additional_details: string | null;
+  event_tag: string | null;
+  event_city: string | null;
+  event_country: string | null;
+  event_date: string | null;
+  event_name: string | null;
+  leave_start_date: string | null;
+  leave_end_date: string | null;
+  status: "pending" | "processed" | "cancelled";
+  processed_by: string | null;
+  processed_at: string | null;
+  processor_notes: string | null;
+  processor_attachment_url: string | null;
+  created_at: string;
+}
+
+export interface DocumentRequestWithEmployee extends DocumentRequest {
+  employee?: {
+    full_name: string;
+    email: string;
+    preferred_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+  };
+  processor?: {
+    full_name: string;
+    email: string;
+  } | null;
+}
+
+export const DOCUMENT_TYPE_LABELS: Record<DocumentRequestType, string> = {
+  certificate_of_employment: "Certificate of Employment",
+  purpose_of_travel: "Purpose of Travel Letter",
+  leave_certificate: "Leave Certificate",
+  contract_copy: "Copy of Contract Agreement",
+  other: "Other",
+};
 
 export interface Schedule {
   id: string;

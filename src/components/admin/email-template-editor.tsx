@@ -161,6 +161,17 @@ export function EmailTemplateEditor({
       types: ["holiday_work_submitted", "holiday_work_approved", "holiday_work_rejected"],
     },
     {
+      label: "Overtime",
+      types: ["overtime_submitted", "overtime_approved", "overtime_rejected"],
+    },
+    {
+      label: "Document Requests",
+      types: [
+        "document_request_employee_copy",
+        "document_request_hr_notification",
+      ],
+    },
+    {
       label: "Attendance & Reminders",
       types: ["attendance_flag", "reminder"],
     },

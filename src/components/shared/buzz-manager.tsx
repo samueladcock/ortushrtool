@@ -5,7 +5,7 @@ import { Bell } from "lucide-react";
 
 interface Props {
   requestId: string;
-  requestType: "schedule_adjustment" | "leave" | "holiday_work";
+  requestType: "schedule_adjustment" | "leave" | "holiday_work" | "overtime";
 }
 
 export function BuzzManager({ requestId, requestType }: Props) {

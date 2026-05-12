@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Pencil, Save, X, Calendar, Trash2, Plus, KeyRound, Palmtree, Download } from "lucide-react";
+import { Pencil, Save, X, Calendar, Trash2, Plus, KeyRound, Palmtree, Download, UserCog } from "lucide-react";
 import { EmployeeLeaveTypesModal } from "./employee-leave-types";
 import type { User, UserRole, HolidayCountry } from "@/types/database";
 import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
@@ -59,6 +59,7 @@ export function UserManagement({
       holiday_country: user.holiday_country,
       timezone: user.timezone,
       is_active: user.is_active,
+      overtime_eligible: user.overtime_eligible,
       birthday: user.birthday,
       hire_date: user.hire_date,
       regularization_date: user.regularization_date,
@@ -246,6 +247,7 @@ export function UserManagement({
       "Regularization Date",
       "End Date",
       "Active",
+      "Overtime Eligible",
       "M",
       "T",
       "W",
@@ -277,6 +279,7 @@ export function UserManagement({
           u.regularization_date ?? "",
           u.end_date ?? "",
           u.is_active ? "Yes" : "No",
+          u.overtime_eligible ? "Yes" : "No",
           userSchedule?.get(0) ?? "",
           userSchedule?.get(1) ?? "",
           userSchedule?.get(2) ?? "",
@@ -369,6 +372,7 @@ export function UserManagement({
                 <th className="px-4 py-3 font-medium text-gray-600">Regularization</th>
                 <th className="px-4 py-3 font-medium text-gray-600">End Date</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Active</th>
+                <th className="px-4 py-3 font-medium text-gray-600">OT Eligible</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
@@ -701,6 +705,24 @@ export function UserManagement({
                       )}
                     </td>
                     <td className="px-4 py-3">
+                      {isEditing ? (
+                        <input
+                          type="checkbox"
+                          checked={editForm.overtime_eligible ?? false}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              overtime_eligible: e.target.checked,
+                            })
+                          }
+                        />
+                      ) : user.overtime_eligible ? (
+                        <span className="text-green-600">Yes</span>
+                      ) : (
+                        <span className="text-gray-400">No</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="flex gap-1">
                         {isEditing ? (
                           <>
@@ -722,10 +744,17 @@ export function UserManagement({
                             <button
                               onClick={() => startEdit(user)}
                               className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                              title="Edit details"
+                              title="Quick edit on this row"
                             >
                               <Pencil size={16} />
                             </button>
+                            <Link
+                              href={`/admin/users/${user.id}`}
+                              className="rounded p-1 text-purple-500 hover:bg-purple-50 hover:text-purple-700"
+                              title="Open full profile"
+                            >
+                              <UserCog size={16} />
+                            </Link>
                             <Link
                               href={`/admin/schedules/${user.id}`}
                               className="rounded p-1 text-blue-500 hover:bg-blue-50 hover:text-blue-700"

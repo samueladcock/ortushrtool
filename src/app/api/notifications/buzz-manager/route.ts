@@ -120,6 +120,25 @@ export async function POST(request: Request) {
       ["Location", hw.work_location === "office" ? "Office" : "Online"],
       ["Reason", hw.reason],
     ]);
+  } else if (request_type === "overtime") {
+    const { data: ot } = await admin
+      .from("overtime_requests")
+      .select("requested_date, start_time, end_time, reason")
+      .eq("id", request_id)
+      .eq("status", "pending")
+      .single();
+
+    if (!ot) {
+      return NextResponse.json({ error: "Request not found or already decided" }, { status: 404 });
+    }
+
+    subject = `Reminder: Overtime Request from ${employeeName}`;
+    details = detailsList([
+      ["Type", "Overtime"],
+      ["Date", ot.requested_date],
+      ["Hours", `${ot.start_time} - ${ot.end_time}`],
+      ["Reason", ot.reason],
+    ]);
   } else {
     return NextResponse.json({ error: "Invalid request_type" }, { status: 400 });
   }
@@ -129,7 +148,14 @@ export async function POST(request: Request) {
   const { subject: renderedSubject, html } = await loadAndRender("reminder", {
     ...getUniversalVars(employee, manager, APP_URL),
     employee_name: employeeName,
-    request_type: request_type === "schedule_adjustment" ? "Schedule Adjustment" : request_type === "leave" ? "Leave" : "Holiday Work",
+    request_type:
+      request_type === "schedule_adjustment"
+        ? "Schedule Adjustment"
+        : request_type === "leave"
+          ? "Leave"
+          : request_type === "holiday_work"
+            ? "Holiday Work"
+            : "Overtime",
     details,
   });
 

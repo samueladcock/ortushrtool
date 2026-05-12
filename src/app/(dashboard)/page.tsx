@@ -126,7 +126,7 @@ export default async function DashboardPage() {
     // Who's out this week (approved leaves overlapping this week)
     supabase
       .from("leave_requests")
-      .select("employee_id, leave_type, start_date, end_date, employee:users!leave_requests_employee_id_fkey(full_name, preferred_name, first_name, last_name, email, manager_id)")
+      .select("employee_id, leave_type, start_date, end_date, leave_duration, half_day_period, half_day_start_time, half_day_end_time, employee:users!leave_requests_employee_id_fkey(full_name, preferred_name, first_name, last_name, email, manager_id)")
       .eq("status", "approved")
       .lte("start_date", weekEnd)
       .gte("end_date", weekStart),
@@ -292,6 +292,10 @@ export default async function DashboardPage() {
       endDate: l.end_date,
       managerId: emp?.manager_id ?? null,
       avatarUrl: avatarMap.get(l.employee_id) ?? null,
+      leaveDuration: l.leave_duration as "full_day" | "half_day" | null,
+      halfDayPeriod: (l.half_day_period as "am" | "pm" | null) ?? null,
+      halfDayStartTime: (l.half_day_start_time as string | null) ?? null,
+      halfDayEndTime: (l.half_day_end_time as string | null) ?? null,
     };
   });
 

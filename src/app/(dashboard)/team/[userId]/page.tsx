@@ -2,9 +2,14 @@ import { getCurrentUser } from "@/lib/auth/helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatTime, hasRole } from "@/lib/utils";
 import { DAYS_OF_WEEK } from "@/lib/constants";
-import { HOLIDAY_COUNTRY_LABELS, type HolidayCountry } from "@/types/database";
+import {
+  HOLIDAY_COUNTRY_LABELS,
+  DOCUMENT_TYPE_LABELS,
+  type HolidayCountry,
+  type DocumentRequest,
+} from "@/types/database";
 import Link from "next/link";
-import { ArrowLeft, Mail, Building2, Clock, Globe, Users, MapPin, Cake, BriefcaseBusiness, CalendarX, Flag } from "lucide-react";
+import { ArrowLeft, Mail, Building2, Clock, Globe, Users, MapPin, Cake, BriefcaseBusiness, CalendarX, Flag, FileText } from "lucide-react";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { AvatarUpload } from "@/components/shared/avatar-upload";
@@ -42,10 +47,12 @@ export default async function TeamMemberPage({
     .eq("id", userId)
     .single();
 
-  // The viewer can see this person's flag history if they're an admin, the
-  // person themselves, or this person's direct manager.
+  // Flags are visible to: the person themselves, their direct manager, and admins.
   const canSeeFlags =
     isAdmin || isOwnProfile || user?.manager_id === currentUser.id;
+
+  // Same visibility rules for document requests.
+  const canSeeDocuments = canSeeFlags;
 
   if (!user) {
     return (
@@ -105,6 +112,18 @@ export default async function TeamMemberPage({
           .order("flag_date", { ascending: false })
           .limit(50)
       ).data ?? []
+    : [];
+
+  // Fetch document request history (same gating as flags)
+  const documentHistory = canSeeDocuments
+    ? ((
+        await supabase
+          .from("document_requests")
+          .select("*")
+          .eq("employee_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(50)
+      ).data ?? []) as DocumentRequest[]
     : [];
 
   const tz =
@@ -374,6 +393,85 @@ export default async function TeamMemberPage({
                   </span>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Document Request History — same gating as flags */}
+      {canSeeDocuments && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <FileText size={14} />
+            Document Request History
+          </h2>
+          {documentHistory.length === 0 ? (
+            <p className="text-sm text-gray-500">No document requests on record.</p>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {documentHistory.map((d) => {
+                const statusStyles: Record<string, string> = {
+                  pending: "bg-yellow-100 text-yellow-700",
+                  processed: "bg-green-100 text-green-700",
+                  cancelled: "bg-gray-100 text-gray-500",
+                };
+                const docName =
+                  d.document_type === "other"
+                    ? d.custom_document_name || "Other"
+                    : DOCUMENT_TYPE_LABELS[d.document_type];
+                return (
+                  <div key={d.id} className="flex items-start justify-between gap-4 py-3">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900">{docName}</span>
+                        <span className="text-xs text-gray-500">
+                          {format(parseISO(d.created_at.slice(0, 10)), "MMM d, yyyy")}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600">
+                        Addressed to <strong>{d.addressee}</strong>
+                      </p>
+                      {d.document_type === "purpose_of_travel" && d.event_name && (
+                        <p className="text-xs text-gray-500">
+                          {d.event_name} — {d.event_city}, {d.event_country}
+                          {d.event_date && ` (${format(parseISO(d.event_date), "MMM d, yyyy")})`}
+                        </p>
+                      )}
+                      {d.document_type === "leave_certificate" &&
+                        d.leave_start_date &&
+                        d.leave_end_date && (
+                          <p className="text-xs text-gray-500">
+                            Leave: {format(parseISO(d.leave_start_date), "MMM d, yyyy")} to{" "}
+                            {format(parseISO(d.leave_end_date), "MMM d, yyyy")}
+                          </p>
+                        )}
+                      {d.processor_notes && (
+                        <p className="text-xs text-gray-700">
+                          <span className="font-medium">HR note:</span>{" "}
+                          <span className="italic">{d.processor_notes}</span>
+                        </p>
+                      )}
+                      {d.processor_attachment_url && (
+                        <p className="text-xs">
+                          <a
+                            href={d.processor_attachment_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-blue-600 hover:underline"
+                          >
+                            Open attachment ↗
+                          </a>
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusStyles[d.status] ?? "bg-gray-100"}`}
+                    >
+                      {d.status}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

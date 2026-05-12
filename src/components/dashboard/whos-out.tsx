@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Users, CalendarHeart, X } from "lucide-react";
 import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { formatTime } from "@/lib/utils";
 
 interface LeaveEntry {
   employeeId: string;
@@ -15,6 +16,10 @@ interface LeaveEntry {
   endDate: string;
   managerId: string | null;
   avatarUrl: string | null;
+  leaveDuration: "full_day" | "half_day" | null;
+  halfDayPeriod: "am" | "pm" | null;
+  halfDayStartTime: string | null;
+  halfDayEndTime: string | null;
 }
 
 interface Holiday {
@@ -229,19 +234,35 @@ export function WhosOut({
               </button>
             </div>
             <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
-              {expandedDayData.entries.map((e, i) => (
-                <Link
-                  key={i}
-                  href={`/team/${e.employeeId}`}
-                  className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-gray-50"
-                >
-                  <UserAvatar name={e.name} avatarUrl={e.avatarUrl} size="md" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">{e.name}</p>
-                    <p className="text-xs text-amber-600">{leaveTypeLabels[e.leaveType] ?? e.leaveType}</p>
-                  </div>
-                </Link>
-              ))}
+              {expandedDayData.entries.map((e, i) => {
+                const isHalfDay = e.leaveDuration === "half_day";
+                const period = e.halfDayPeriod === "am" ? "AM" : "PM";
+                const timeRange =
+                  e.halfDayStartTime && e.halfDayEndTime
+                    ? `${formatTime(e.halfDayStartTime)} – ${formatTime(e.halfDayEndTime)}`
+                    : null;
+                return (
+                  <Link
+                    key={i}
+                    href={`/team/${e.employeeId}`}
+                    className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-gray-50"
+                  >
+                    <UserAvatar name={e.name} avatarUrl={e.avatarUrl} size="md" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900 truncate">{e.name}</p>
+                        {isHalfDay && (
+                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                            Half day ({period})
+                            {timeRange ? ` · ${timeRange}` : ""}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-amber-600">{leaveTypeLabels[e.leaveType] ?? e.leaveType}</p>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </>

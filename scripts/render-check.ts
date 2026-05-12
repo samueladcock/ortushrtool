@@ -35,6 +35,7 @@ const sample: Record<string, string> = {
   actual_time: "09:23",
   deviation_minutes: "23",
   years_count: "3",
+  benefits_html: "<ul><li>+5 PTO days</li><li>Annual bonus boost</li></ul>",
   employee_email: "jamie@ortus.solutions",
   details: "<ul><li><strong>Type:</strong> Leave</li></ul>",
   request_type: "Leave",
@@ -45,6 +46,9 @@ const sample: Record<string, string> = {
   holiday_date: "2026-06-12",
   start_time: "09:00",
   end_time: "17:00",
+  document_type: "Certificate of Employment",
+  addressee: "Embassy of Australia",
+  request_details_html: "<ul><li><strong>Document:</strong> COE</li></ul>",
 };
 
 let issues = 0;

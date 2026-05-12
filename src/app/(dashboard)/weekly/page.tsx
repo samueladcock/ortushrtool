@@ -1,10 +1,12 @@
 import { requireRole } from "@/lib/auth/helpers";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { WeeklyScheduleTable } from "@/components/admin/weekly-schedule-table";
 
 export default async function WeeklySchedulePage() {
   const currentUser = await requireRole("employee");
-  const supabase = await createClient();
+  // Use admin client to bypass RLS — Team Calendar shows everyone to everyone,
+  // matching the Team Directory pattern.
+  const supabase = createAdminClient();
 
   const today = new Date().toISOString().split("T")[0];
 

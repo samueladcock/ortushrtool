@@ -23,6 +23,8 @@ import {
   Eye,
   Mail,
   HelpCircle,
+  Gift,
+  FileText,
 } from "lucide-react";
 import { useState } from "react";
 import type { UserRole } from "@/types/database";
@@ -56,6 +58,7 @@ const navSections: NavSection[] = [
       { label: "My Schedule", href: "/schedule", icon: <Calendar size={20} />, minRole: "employee" },
       { label: "My Attendance", href: "/attendance", icon: <Clock size={20} />, minRole: "employee" },
       { label: "Schedule Requests", href: "/requests", icon: <ArrowRightLeft size={20} />, minRole: "employee" },
+      { label: "Document Requests", href: "/documents", icon: <FileText size={20} />, minRole: "employee" },
       { label: "Flags", href: "/flags", icon: <Flag size={20} />, minRole: "employee" },
       { label: "Holidays", href: "/holidays", icon: <CalendarHeart size={20} />, minRole: "employee" },
       { label: "Team Calendar", href: "/weekly", icon: <CalendarDays size={20} />, minRole: "employee" },
@@ -80,6 +83,8 @@ const navSections: NavSection[] = [
       { label: "All Schedules", href: "/admin/schedules", icon: <Calendar size={20} />, minRole: "hr_admin" },
       { label: "Manage Holidays", href: "/admin/holidays", icon: <CalendarHeart size={20} />, minRole: "hr_admin" },
       { label: "Leave Plans", href: "/admin/leave-plans", icon: <Palmtree size={20} />, minRole: "hr_admin" },
+      { label: "Anniversary Benefits", href: "/admin/settings/anniversary-benefits", icon: <Gift size={20} />, minRole: "super_admin" },
+      { label: "Document Requests", href: "/admin/document-requests", icon: <FileText size={20} />, minRole: "hr_admin" },
       { label: "Users", href: "/admin/users", icon: <Users size={20} />, minRole: "hr_admin" },
       { label: "Help & Guide", href: "/admin/help", icon: <HelpCircle size={20} />, minRole: "hr_admin" },
     ],

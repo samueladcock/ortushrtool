@@ -5,10 +5,17 @@ import { LEAVE_TYPE_LABELS } from "@/lib/constants";
 import { AdjustmentActions } from "@/components/adjustments/adjustment-actions";
 import { LeaveActions } from "@/components/leave/leave-actions";
 import { HolidayWorkActions } from "@/components/holiday-work/holiday-work-actions";
+import { OvertimeActions } from "@/components/overtime/overtime-actions";
 import { CancelRequest } from "@/components/shared/cancel-request";
 import { BuzzManager } from "@/components/shared/buzz-manager";
 import Link from "next/link";
-import { ArrowRightLeft, CalendarOff, CalendarCheck, AlertTriangle } from "lucide-react";
+import {
+  ArrowRightLeft,
+  CalendarOff,
+  CalendarCheck,
+  AlertTriangle,
+  Clock4,
+} from "lucide-react";
 import { startOfWeek, addDays, format } from "date-fns";
 import { LeaveCsvImport } from "@/components/admin/leave-csv-import";
 import { AdjustmentCsvImport } from "@/components/admin/adjustment-csv-import";
@@ -54,6 +61,21 @@ export default async function RequestsPage() {
   }
 
   const { data: holidayWorkRequests } = await hwQuery;
+
+  // Fetch overtime requests
+  let otQuery = supabase
+    .from("overtime_requests")
+    .select("*, employee:users!overtime_requests_employee_id_fkey(full_name, email)")
+    .order("created_at", { ascending: false });
+
+  if (!isReviewer) {
+    otQuery = otQuery.eq("employee_id", user.id);
+  }
+
+  const { data: overtimeRequests } = await otQuery;
+
+  const pendingOT = (overtimeRequests ?? []).filter((o) => o.status === "pending");
+  const pastOT = (overtimeRequests ?? []).filter((o) => o.status !== "pending");
 
   const pendingAdj = (adjustments ?? []).filter((a) => a.status === "pending");
   const pastAdj = (adjustments ?? []).filter((a) => a.status !== "pending");
@@ -171,6 +193,15 @@ export default async function RequestsPage() {
         <CalendarCheck size={16} />
         Work on Holiday
       </Link>
+      {user.overtime_eligible && (
+        <Link
+          href="/requests/overtime"
+          className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
+        >
+          <Clock4 size={16} />
+          Request Overtime
+        </Link>
+      )}
     </div>
   );
 
@@ -395,12 +426,59 @@ export default async function RequestsPage() {
         </div>
       )}
 
+      {/* Pending Overtime Requests */}
+      {pendingOT.length > 0 && (
+        <div className="rounded-xl border border-orange-200 bg-white shadow-sm">
+          <div className="border-b border-orange-200 px-6 py-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Pending Overtime Requests ({pendingOT.length})
+            </h2>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {pendingOT.map((ot) => (
+              <div key={ot.id} className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    {isReviewer && ot.employee && (
+                      <p className="font-medium text-gray-900">
+                        <UserNameLink
+                          userId={ot.employee_id}
+                          name={ot.employee.full_name || ot.employee.email}
+                        />
+                      </p>
+                    )}
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium">Date:</span>{" "}
+                      {formatDate(ot.requested_date)}
+                    </p>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium">Hours:</span>{" "}
+                      {formatTime(ot.start_time)} - {formatTime(ot.end_time)}
+                    </p>
+                    <p className="text-sm text-gray-600">{ot.reason}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    {isReviewer && <OvertimeActions overtimeId={ot.id} />}
+                    {!isReviewer && (
+                      <>
+                        <BuzzManager requestId={ot.id} requestType="overtime" />
+                        <CancelRequest requestId={ot.id} table="overtime_requests" />
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* History */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">History</h2>
         </div>
-        {pastAdj.length === 0 && pastLeave.length === 0 && pastHW.length === 0 ? (
+        {pastAdj.length === 0 && pastLeave.length === 0 && pastHW.length === 0 && pastOT.length === 0 ? (
           <div className="p-6 text-center text-gray-500">No past requests.</div>
         ) : (
           <div className="divide-y divide-gray-100">
@@ -511,6 +589,40 @@ export default async function RequestsPage() {
                     <HolidayWorkActions requestId={hw.id} currentStatus={hw.status} />
                   )}
                   <StatusBadge status={hw.status} />
+                </div>
+              </div>
+            ))}
+            {pastOT.map((ot) => (
+              <div key={ot.id} className="flex items-center justify-between p-6">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                      Overtime
+                    </span>
+                    {isReviewer && ot.employee && (
+                      <span className="text-sm font-medium text-gray-900">
+                        <UserNameLink
+                          userId={ot.employee_id}
+                          name={ot.employee.full_name || ot.employee.email}
+                        />
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-700">
+                    {formatDate(ot.requested_date)} &mdash;{" "}
+                    {formatTime(ot.start_time)} - {formatTime(ot.end_time)}
+                  </p>
+                  {ot.reviewer_notes && (
+                    <p className="text-sm text-gray-500 italic">
+                      Note: {ot.reviewer_notes}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  {isReviewer && (
+                    <OvertimeActions overtimeId={ot.id} currentStatus={ot.status} />
+                  )}
+                  <StatusBadge status={ot.status} />
                 </div>
               </div>
             ))}

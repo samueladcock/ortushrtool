@@ -227,6 +227,56 @@ export const EMAIL_TEMPLATE_DEFAULTS: EmailTemplateDefault[] = [
     variables: "employee_name, holiday_name, holiday_date, start_time, end_time, location, notes, app_url",
   },
 
+  // ── Overtime ──
+  {
+    type: "overtime_submitted",
+    name: "Overtime Submitted",
+    subject: "Overtime Request from {{employee_name}}",
+    body: [
+      `<h2>Overtime Request</h2>`,
+      `<p>{{employee_name}} has requested approval to work overtime.</p>`,
+      fields([
+        ["Date", "{{requested_date}}"],
+        ["Hours", "{{start_time}} - {{end_time}}"],
+        ["Reason", "{{reason}}"],
+      ]),
+      button("Review Request", "{{app_url}}/requests"),
+    ].join("\n"),
+    variables: "employee_name, requested_date, start_time, end_time, reason, app_url",
+  },
+  {
+    type: "overtime_approved",
+    name: "Overtime Approved",
+    subject: "Overtime Approved — {{employee_name}}",
+    body: [
+      `<h2>Overtime Request Approved</h2>`,
+      `<p class="banner-success">Your overtime request for {{requested_date}} has been approved.</p>`,
+      fields([
+        ["Date", "{{requested_date}}"],
+        ["Hours", "{{start_time}} - {{end_time}}"],
+      ]),
+      `{{#if notes}}<p><strong>Manager Notes:</strong> {{notes}}</p>{{/if}}`,
+      button("View Details", "{{app_url}}/requests"),
+    ].join("\n"),
+    variables: "employee_name, requested_date, start_time, end_time, notes, app_url",
+  },
+  {
+    type: "overtime_rejected",
+    name: "Overtime Rejected",
+    subject: "Overtime Rejected — {{employee_name}}",
+    body: [
+      `<h2>Overtime Request Rejected</h2>`,
+      `<p class="banner-danger">Your overtime request for {{requested_date}} has been rejected.</p>`,
+      fields([
+        ["Date", "{{requested_date}}"],
+        ["Hours", "{{start_time}} - {{end_time}}"],
+      ]),
+      `{{#if notes}}<p><strong>Manager Notes:</strong> {{notes}}</p>{{/if}}`,
+      button("View Details", "{{app_url}}/requests"),
+    ].join("\n"),
+    variables: "employee_name, requested_date, start_time, end_time, notes, app_url",
+  },
+
   // ── Attendance ──
   {
     type: "attendance_flag",
@@ -280,9 +330,40 @@ export const EMAIL_TEMPLATE_DEFAULTS: EmailTemplateDefault[] = [
       `<h2>Happy Work Anniversary, {{preferred_name}}!</h2>`,
       `<p>Today marks <strong>{{years_count}} year(s)</strong> with Ortus Club — what a milestone.</p>`,
       `<p>Thank you for the energy, care, and craft you bring to the team. Here's to many more.</p>`,
+      `{{#if benefits_html}}<h2>Your {{years_count}}-Year Benefits</h2>{{benefits_html}}{{/if}}`,
       `<p>— The Ortus Club Team</p>`,
     ].join("\n"),
-    variables: "years_count",
+    variables: "years_count, benefits_html",
+  },
+
+  // ── Document Requests ──
+  {
+    type: "document_request_employee_copy",
+    name: "Document Request — Confirmation (to employee)",
+    subject: "We received your document request",
+    body: [
+      `<h2>Hi {{preferred_name}},</h2>`,
+      `<p>We&apos;ve received your request for a <strong>{{document_type}}</strong> addressed to <strong>{{addressee}}</strong>. HR will be in touch once it&apos;s ready.</p>`,
+      `<p>Here&apos;s a copy of what you submitted:</p>`,
+      `{{request_details_html}}`,
+      button("View My Requests", "{{app_url}}/documents"),
+      `<p class="muted">No action needed from you — this is just a confirmation.</p>`,
+    ].join("\n"),
+    variables:
+      "employee_name, document_type, addressee, request_details_html",
+  },
+  {
+    type: "document_request_hr_notification",
+    name: "Document Request — Notification (to HR)",
+    subject: "New document request from {{employee_name}}",
+    body: [
+      `<h2>New Document Request</h2>`,
+      `<p><strong>{{employee_name}}</strong> has requested a <strong>{{document_type}}</strong> addressed to <strong>{{addressee}}</strong>.</p>`,
+      `{{request_details_html}}`,
+      button("Review in HR Queue", "{{app_url}}/admin/document-requests"),
+    ].join("\n"),
+    variables:
+      "employee_name, document_type, addressee, request_details_html",
   },
 
   // ── Reminders ──

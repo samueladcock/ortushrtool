@@ -72,6 +72,20 @@ export const TEMPLATE_META: Record<string, TemplateMeta> = {
       "Sent when a holiday-work request is rejected. To: the employee, manager, and reviewer.",
   },
 
+  // Overtime
+  overtime_submitted: {
+    sentWhen:
+      "Sent when an employee (flagged by HR as overtime-eligible) submits an overtime request. To: their manager.",
+  },
+  overtime_approved: {
+    sentWhen:
+      "Sent when an overtime request is approved. To: the employee, manager, and reviewer.",
+  },
+  overtime_rejected: {
+    sentWhen:
+      "Sent when an overtime request is rejected. To: the employee, manager, and reviewer.",
+  },
+
   // Attendance
   attendance_flag: {
     sentWhen:
@@ -95,9 +109,19 @@ export const TEMPLATE_META: Record<string, TemplateMeta> = {
   },
   work_anniversary: {
     sentWhen:
-      "Sent at 9:00 AM Manila on each user's work anniversary (year 1 onwards — skips day-of-hire). To: the celebrant. CC: their manager and all HR users.",
+      "Sent at 9:00 AM Manila on each user's work anniversary (year 1 onwards — skips day-of-hire). To: the celebrant. CC: their manager and all HR users. The benefits section auto-fills from Anniversary Benefits when one is defined for the user's country + year count; otherwise the section is omitted.",
     toggleKey: "anniversary_emails_enabled",
     toggleLabel: "Send work anniversary emails",
+  },
+
+  // Document requests
+  document_request_employee_copy: {
+    sentWhen:
+      "Sent to the employee right after they submit a document request, echoing the details they entered as a confirmation receipt.",
+  },
+  document_request_hr_notification: {
+    sentWhen:
+      "Sent to all active HR users when an employee submits a document request, with a link to the HR queue at /admin/document-requests.",
   },
 
   // Reminders

@@ -21,6 +21,7 @@ type CelebrantUser = {
   birthday: string | null;
   hire_date: string | null;
   regularization_date: string | null;
+  holiday_country: string | null;
 };
 
 export async function GET(request: Request) {
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
         supabase
           .from("users")
           .select(
-            "id, email, full_name, preferred_name, first_name, last_name, department, job_title, location, manager_id, birthday, hire_date, regularization_date"
+            "id, email, full_name, preferred_name, first_name, last_name, department, job_title, location, manager_id, birthday, hire_date, regularization_date, holiday_country"
           )
           .eq("is_active", true),
       ]);
@@ -130,6 +131,16 @@ export async function GET(request: Request) {
         const hireYear = parseInt(user.hire_date.slice(0, 4), 10);
         const years = todayYear - hireYear;
         if (years >= 1) {
+          let benefitsHtml = "";
+          if (user.holiday_country) {
+            const { data: benefit } = await supabase
+              .from("anniversary_benefits")
+              .select("body")
+              .eq("country", user.holiday_country)
+              .eq("years", years)
+              .maybeSingle();
+            benefitsHtml = benefit?.body ?? "";
+          }
           const result = await sendCelebrationEmail({
             type: "work_anniversary",
             to: user.email,
@@ -137,6 +148,7 @@ export async function GET(request: Request) {
             vars: {
               ...universal,
               years_count: String(years),
+              benefits_html: benefitsHtml,
             },
           });
           await logNotification(supabase, {

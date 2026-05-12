@@ -42,8 +42,10 @@ interface ParsedRow {
   desktimeUrl: string;
   birthday: string;
   hireDate: string;
+  regularizationDate: string;
   endDate: string;
   isActive: boolean | null;
+  overtimeEligible: boolean | null;
   days: ({ location: string; start: string; end: string } | "rest" | null)[];
 }
 
@@ -89,8 +91,20 @@ function parseCSV(csvText: string): ParsedRow[] {
   const desktimeUrlIdx = col(["desktime url", "desktime_url", "desktimeurl"]);
   const birthdayIdx = col(["birthday", "date_of_birth", "dob"]);
   const hireDateIdx = col(["hire_date", "hire date", "start_date", "start date"]);
+  const regularizationDateIdx = col([
+    "regularization date",
+    "regularization_date",
+    "regularization",
+    "regular date",
+  ]);
   const endDateIdx = col(["end_date", "end date"]);
   const activeIdx = col(["active", "is_active"]);
+  const overtimeEligibleIdx = col([
+    "overtime eligible",
+    "overtime_eligible",
+    "ot eligible",
+    "ot_eligible",
+  ]);
   const mIdx = col(["m", "monday"]);
   const tIdx = col(["t", "tuesday"]);
   const wIdx = col(["w", "wednesday"]);
@@ -121,8 +135,12 @@ function parseCSV(csvText: string): ParsedRow[] {
     const desktimeUrlRaw = desktimeUrlIdx >= 0 ? parts[desktimeUrlIdx] || "" : "";
     const birthdayRaw = birthdayIdx >= 0 ? parts[birthdayIdx] || "" : "";
     const hireDateRaw = hireDateIdx >= 0 ? parts[hireDateIdx] || "" : "";
+    const regularizationDateRaw =
+      regularizationDateIdx >= 0 ? parts[regularizationDateIdx] || "" : "";
     const endDateRaw = endDateIdx >= 0 ? parts[endDateIdx] || "" : "";
     const activeRaw = activeIdx >= 0 ? parts[activeIdx] || "" : "";
+    const overtimeEligibleRaw =
+      overtimeEligibleIdx >= 0 ? parts[overtimeEligibleIdx] || "" : "";
 
     const days = [mIdx, tIdx, wIdx, thIdx, fIdx].map(
       (idx) => idx >= 0 ? parseScheduleCell(parts[idx] || "") : null
@@ -131,6 +149,12 @@ function parseCSV(csvText: string): ParsedRow[] {
     let isActive: boolean | null = null;
     if (activeRaw) {
       isActive = ["yes", "true", "1"].includes(activeRaw.toLowerCase());
+    }
+    let overtimeEligible: boolean | null = null;
+    if (overtimeEligibleRaw) {
+      overtimeEligible = ["yes", "true", "1"].includes(
+        overtimeEligibleRaw.toLowerCase()
+      );
     }
 
     const firstName = hasNameParts ? (parts[firstNameIdx] || "") : "";
@@ -158,8 +182,10 @@ function parseCSV(csvText: string): ParsedRow[] {
       desktimeUrl: desktimeUrlRaw,
       birthday: birthdayRaw,
       hireDate: hireDateRaw,
+      regularizationDate: regularizationDateRaw,
       endDate: endDateRaw,
       isActive,
+      overtimeEligible,
       days,
     });
   }
@@ -257,8 +283,12 @@ export async function POST(request: Request) {
           if (row.desktimeUrl) updateFields.desktime_url = row.desktimeUrl;
           if (row.birthday) updateFields.birthday = row.birthday;
           if (row.hireDate) updateFields.hire_date = row.hireDate;
+          if (row.regularizationDate)
+            updateFields.regularization_date = row.regularizationDate;
           if (row.endDate) updateFields.end_date = row.endDate;
           if (row.isActive !== null) updateFields.is_active = row.isActive;
+          if (row.overtimeEligible !== null)
+            updateFields.overtime_eligible = row.overtimeEligible;
 
           const existingId = emailToId.get(row.email);
 
