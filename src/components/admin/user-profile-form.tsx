@@ -20,7 +20,7 @@ const TIMEZONE_OPTIONS = [
   { value: "Asia/Dubai", label: "GST (Dubai)" },
 ];
 
-const ROLE_OPTIONS: UserRole[] = ["employee", "manager", "hr_admin", "super_admin"];
+const ROLE_OPTIONS: UserRole[] = ["employee", "manager", "hr_recruiter", "hr_admin", "super_admin"];
 
 const COUNTRY_OPTIONS = Object.keys(HOLIDAY_COUNTRY_LABELS) as HolidayCountry[];
 

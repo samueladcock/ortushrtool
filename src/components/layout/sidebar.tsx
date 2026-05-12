@@ -35,6 +35,8 @@ interface NavItem {
   href: string;
   icon: React.ReactNode;
   minRole: UserRole;
+  /** If set, only roles in this list see the link (overrides minRole). */
+  roles?: UserRole[];
 }
 
 interface NavSection {
@@ -113,7 +115,9 @@ export function Sidebar({
     <nav className="flex flex-col gap-1 p-4">
       {navSections.map((section) => {
         if (!hasRole(userRole, section.minRole)) return null;
-        const visibleItems = section.items.filter((item) => hasRole(userRole, item.minRole));
+        const visibleItems = section.items.filter((item) =>
+          item.roles ? item.roles.includes(userRole) : hasRole(userRole, item.minRole)
+        );
         if (visibleItems.length === 0) return null;
 
         return (

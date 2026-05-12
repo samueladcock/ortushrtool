@@ -1,4 +1,23 @@
-export type UserRole = "employee" | "manager" | "hr_admin" | "super_admin";
+export type UserRole =
+  | "employee"
+  | "manager"
+  | "hr_admin"
+  | "super_admin"
+  | "hr_recruiter";
+
+export interface EmployeeReference {
+  id: string;
+  employee_id: string;
+  name: string;
+  relationship: string | null;
+  company: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  updated_by: string | null;
+  updated_at: string;
+  created_at: string;
+}
 export type AdjustmentStatus = "pending" | "approved" | "rejected";
 export type AttendanceStatus =
   | "on_time"
@@ -66,6 +85,7 @@ export interface User {
   holiday_country: HolidayCountry;
   is_active: boolean;
   overtime_eligible: boolean;
+  calendar_token: string | null;
   created_at: string;
   updated_at: string;
 }

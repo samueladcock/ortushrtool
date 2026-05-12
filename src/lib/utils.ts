@@ -57,8 +57,12 @@ export function hasRole(
   userRole: string,
   requiredRole: string
 ): boolean {
+  // hr_recruiter is a parallel role at employee level — they can view a
+  // stripped-down version of any employee's profile (identity + references
+  // only), but do NOT inherit manager/HR permissions on the normal hierarchy.
   const hierarchy: Record<string, number> = {
     employee: 0,
+    hr_recruiter: 0,
     manager: 1,
     hr_admin: 2,
     super_admin: 3,

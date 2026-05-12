@@ -2,6 +2,7 @@ import type { UserRole } from "@/types/database";
 
 export const ROLE_HIERARCHY: Record<UserRole, number> = {
   employee: 0,
+  hr_recruiter: 0,
   manager: 1,
   hr_admin: 2,
   super_admin: 3,

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Search } from "lucide-react";
 import { FlagAcknowledge } from "./flag-acknowledge";
 import { EmployeeFlagNote } from "./employee-flag-note";
+import { FlagsExport, type FlagRow } from "./flags-export";
 import { UserNameLink } from "@/components/shared/user-name-link";
 import { displayName } from "@/lib/utils";
 
@@ -78,15 +80,148 @@ const flagTypeStyles: Record<string, string> = {
 };
 
 export function FlagsTable({ initialFlags, employees, currentUserId, viewerIsAdmin }: Props) {
+  const router = useRouter();
   const [flags, setFlags] = useState(initialFlags);
   const [loading, setLoading] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState("");
+  const [employeeSearch, setEmployeeSearch] = useState("");
   const [selectedType, setSelectedType] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<"" | "pending" | "acknowledged">("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [filtered, setFiltered] = useState(false);
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkNote, setBulkNote] = useState("");
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+
   const employeeIds = employees.map((e) => e.id);
+
+  // Client-side filter by employee name search (matches preferred + first/last/full + email)
+  const displayedFlags = useMemo(() => {
+    const q = employeeSearch.trim().toLowerCase();
+    if (!q) return flags;
+    return flags.filter((f) => {
+      const e = f.employee;
+      if (!e) return false;
+      const haystack = [
+        e.full_name,
+        e.preferred_name,
+        e.first_name,
+        e.last_name,
+        e.email,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [flags, employeeSearch]);
+
+  // A flag is selectable iff the viewer can acknowledge it AND it's pending.
+  const canAcknowledgeFlag = (flag: AttendanceFlag) => {
+    if (flag.acknowledged) return false;
+    if (flag.employee_id === currentUserId) return false;
+    if (viewerIsAdmin) return true;
+    return (
+      !!flag.employee?.manager_id &&
+      flag.employee.manager_id === currentUserId
+    );
+  };
+
+  const selectableFlags = displayedFlags.filter(canAcknowledgeFlag);
+  const allSelectableSelected =
+    selectableFlags.length > 0 &&
+    selectableFlags.every((f) => selectedIds.has(f.id));
+
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectableSelected) {
+        for (const f of selectableFlags) next.delete(f.id);
+      } else {
+        for (const f of selectableFlags) next.add(f.id);
+      }
+      return next;
+    });
+  };
+
+  const fetchFlagsForExport = async (): Promise<FlagRow[]> => {
+    const supabase = createClient();
+    let query = supabase
+      .from("attendance_flags")
+      .select(
+        "*, employee:users!attendance_flags_employee_id_fkey(full_name, preferred_name, first_name, last_name, email, manager_id)"
+      )
+      .in("employee_id", employeeIds)
+      .order("flag_date", { ascending: false });
+
+    if (selectedType) query = query.eq("flag_type", selectedType);
+    if (selectedStatus === "acknowledged") query = query.eq("acknowledged", true);
+    else if (selectedStatus === "pending") query = query.eq("acknowledged", false);
+    if (startDate && endDate) {
+      query = query.gte("flag_date", startDate).lte("flag_date", endDate);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+
+    // Apply the same client-side employee search the table uses
+    const all = (data ?? []) as FlagRow[];
+    const q = employeeSearch.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((f) => {
+      const e = f.employee;
+      if (!e) return false;
+      const haystack = [
+        e.full_name,
+        e.preferred_name,
+        e.first_name,
+        e.last_name,
+        e.email,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  };
+
+  const handleBulkAcknowledge = async () => {
+    setBulkLoading(true);
+    setBulkMessage(null);
+    const res = await fetch("/api/flags/bulk-acknowledge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        flag_ids: Array.from(selectedIds),
+        notes: bulkNote,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setBulkMessage(data.error ?? "Bulk acknowledge failed");
+      setBulkLoading(false);
+      return;
+    }
+    const skipped = (data.skipped ?? []).length;
+    setBulkMessage(
+      `Acknowledged ${data.acknowledged}.${skipped > 0 ? ` Skipped ${skipped}.` : ""}`
+    );
+    setSelectedIds(new Set());
+    setBulkNote("");
+    setBulkLoading(false);
+    router.refresh();
+  };
 
   const handleFilter = async () => {
     setLoading(true);
@@ -97,14 +232,16 @@ export function FlagsTable({ initialFlags, employees, currentUserId, viewerIsAdm
       .select("*, employee:users!attendance_flags_employee_id_fkey(full_name, email, manager_id)")
       .order("flag_date", { ascending: false });
 
-    if (selectedEmployee) {
-      query = query.eq("employee_id", selectedEmployee);
-    } else {
-      query = query.in("employee_id", employeeIds);
-    }
+    query = query.in("employee_id", employeeIds);
 
     if (selectedType) {
       query = query.eq("flag_type", selectedType);
+    }
+
+    if (selectedStatus === "acknowledged") {
+      query = query.eq("acknowledged", true);
+    } else if (selectedStatus === "pending") {
+      query = query.eq("acknowledged", false);
     }
 
     if (startDate && endDate) {
@@ -117,12 +254,14 @@ export function FlagsTable({ initialFlags, employees, currentUserId, viewerIsAdm
     setFlags(data ?? []);
     setFiltered(true);
     setLoading(false);
+    setSelectedIds(new Set());
   };
 
   const handleReset = async () => {
     setLoading(true);
-    setSelectedEmployee("");
+    setEmployeeSearch("");
     setSelectedType("");
+    setSelectedStatus("");
     setStartDate("");
     setEndDate("");
 
@@ -137,26 +276,28 @@ export function FlagsTable({ initialFlags, employees, currentUserId, viewerIsAdm
     setFlags(data ?? []);
     setFiltered(false);
     setLoading(false);
+    setSelectedIds(new Set());
   };
 
   return (
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-3">
-        <div>
+        <div className="min-w-[220px] flex-1">
           <label className="block text-xs font-medium text-gray-600">Employee</label>
-          <select
-            value={selectedEmployee}
-            onChange={(e) => setSelectedEmployee(e.target.value)}
-            className="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            <option value="">All employees</option>
-            {employees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {displayName(e)}
-              </option>
-            ))}
-          </select>
+          <div className="relative mt-1">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              type="search"
+              value={employeeSearch}
+              onChange={(e) => setEmployeeSearch(e.target.value)}
+              placeholder="Search by name or email..."
+              className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600">Flag Type</label>
@@ -169,6 +310,20 @@ export function FlagsTable({ initialFlags, employees, currentUserId, viewerIsAdm
             <option value="late_arrival">Late Arrival</option>
             <option value="early_departure">Early Departure</option>
             <option value="absent">Absent</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600">Status</label>
+          <select
+            value={selectedStatus}
+            onChange={(e) =>
+              setSelectedStatus(e.target.value as "" | "pending" | "acknowledged")
+            }
+            className="mt-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">All</option>
+            <option value="pending">Pending</option>
+            <option value="acknowledged">Acknowledged</option>
           </select>
         </div>
         <div>
@@ -207,28 +362,95 @@ export function FlagsTable({ initialFlags, employees, currentUserId, viewerIsAdm
           </button>
         )}
         <span className="text-xs text-gray-500">
-          {filtered
-            ? `Showing ${flags.length} flag(s)`
-            : "Showing last 50 flags"}
+          {employeeSearch.trim()
+            ? `Showing ${displayedFlags.length} of ${flags.length} flag(s) matching "${employeeSearch.trim()}"`
+            : filtered
+              ? `Showing ${flags.length} flag(s)`
+              : "Showing last 50 flags"}
         </span>
+        <div className="ml-auto">
+          <FlagsExport fetchFlags={fetchFlagsForExport} />
+        </div>
       </div>
+
+      {/* Bulk acknowledge bar (only HR / managers will see selectable rows) */}
+      {selectableFlags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-3">
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={allSelectableSelected}
+              onChange={toggleAll}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            Select all pending ({selectableFlags.length})
+          </label>
+          {selectedIds.size > 0 && (
+            <>
+              <span className="text-sm text-gray-600">
+                {selectedIds.size} selected
+              </span>
+              <input
+                type="text"
+                value={bulkNote}
+                onChange={(e) => setBulkNote(e.target.value)}
+                placeholder="Optional manager note (applied to all)..."
+                className="flex-1 min-w-[200px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleBulkAcknowledge}
+                disabled={bulkLoading}
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {bulkLoading
+                  ? "Acknowledging..."
+                  : `Acknowledge ${selectedIds.size}`}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedIds(new Set());
+                  setBulkNote("");
+                }}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Clear
+              </button>
+            </>
+          )}
+          {bulkMessage && (
+            <span className="text-xs text-gray-500">{bulkMessage}</span>
+          )}
+        </div>
+      )}
 
       {/* Flags list */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        {flags.length > 0 ? (
+        {displayedFlags.length > 0 ? (
           <div className="divide-y divide-gray-100">
-            {flags.map((flag) => {
+            {displayedFlags.map((flag) => {
               const isOwn = flag.employee_id === currentUserId;
               const isDirectManager =
                 !!flag.employee?.manager_id &&
                 flag.employee.manager_id === currentUserId;
               const canAcknowledgeThis =
                 !isOwn && (viewerIsAdmin || isDirectManager);
+              const isSelectable = canAcknowledgeFlag(flag);
               return (
                 <div
                   key={flag.id}
                   className="flex items-start justify-between gap-6 p-6"
                 >
+                  {isSelectable && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(flag.id)}
+                      onChange={() => toggleOne(flag.id)}
+                      className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      aria-label="Select flag for bulk acknowledge"
+                    />
+                  )}
                   <div className="min-w-0 flex-1 space-y-2">
                     {flag.employee && (
                       <p className="font-medium text-gray-900">

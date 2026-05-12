@@ -24,6 +24,7 @@ interface TeamUser {
 const ROLE_LABELS: Record<string, string> = {
   employee: "Employee",
   manager: "Manager",
+  hr_recruiter: "HR Recruiter",
   hr_admin: "HR Admin",
   super_admin: "Super Admin",
 };
@@ -31,6 +32,7 @@ const ROLE_LABELS: Record<string, string> = {
 const ROLE_COLORS: Record<string, string> = {
   employee: "bg-gray-100 text-gray-700",
   manager: "bg-blue-100 text-blue-700",
+  hr_recruiter: "bg-pink-100 text-pink-700",
   hr_admin: "bg-purple-100 text-purple-700",
   super_admin: "bg-red-100 text-red-700",
 };
@@ -215,9 +217,16 @@ function GridView({ users }: { users: TeamUser[] }) {
                 >
                   {ROLE_LABELS[user.role] ?? user.role}
                 </span>
-                {user.manager_name && (
+                {user.manager_name && user.manager_id && (
                   <span className="text-xs text-gray-400">
-                    Reports to {user.manager_name}
+                    Reports to{" "}
+                    <Link
+                      href={`/team/${user.manager_id}`}
+                      className="text-blue-600 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {user.manager_name}
+                    </Link>
                   </span>
                 )}
               </div>
@@ -291,7 +300,16 @@ function ListView({ users }: { users: TeamUser[] }) {
                   </span>
                 </td>
                 <td className="px-6 py-3 text-gray-600">
-                  {user.manager_name || "—"}
+                  {user.manager_name && user.manager_id ? (
+                    <Link
+                      href={`/team/${user.manager_id}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {user.manager_name}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
                 </td>
               </tr>
             ))}

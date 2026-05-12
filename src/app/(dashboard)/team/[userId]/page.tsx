@@ -7,9 +7,11 @@ import {
   DOCUMENT_TYPE_LABELS,
   type HolidayCountry,
   type DocumentRequest,
+  type EmployeeReference,
 } from "@/types/database";
 import Link from "next/link";
-import { ArrowLeft, Mail, Building2, Clock, Globe, Users, MapPin, Cake, BriefcaseBusiness, CalendarX, Flag, FileText } from "lucide-react";
+import { ArrowLeft, Mail, Building2, Clock, Globe, Users, MapPin, Cake, BriefcaseBusiness, CalendarX, Flag, FileText, ContactRound } from "lucide-react";
+import { ReferencesEditor } from "@/components/profile/references-editor";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { AvatarUpload } from "@/components/shared/avatar-upload";
@@ -37,6 +39,7 @@ export default async function TeamMemberPage({
   const { userId } = await params;
   const isOwnProfile = currentUser.id === userId;
   const isAdmin = hasRole(currentUser.role, "hr_admin");
+  const isRecruiter = currentUser.role === "hr_recruiter";
   const canSeeEndDate = isAdmin || isOwnProfile;
   // Use admin client to bypass RLS — any employee can view any profile
   const supabase = createAdminClient();
@@ -48,11 +51,16 @@ export default async function TeamMemberPage({
     .single();
 
   // Flags are visible to: the person themselves, their direct manager, and admins.
+  // Recruiters do NOT see flags.
   const canSeeFlags =
     isAdmin || isOwnProfile || user?.manager_id === currentUser.id;
 
   // Same visibility rules for document requests.
   const canSeeDocuments = canSeeFlags;
+  // References: visible to flag-viewers AND recruiters.
+  const canSeeReferencesHere = canSeeFlags || isRecruiter;
+  // Self + admins + recruiters can edit references.
+  const canEditReferences = isAdmin || isOwnProfile || isRecruiter;
 
   if (!user) {
     return (
@@ -124,6 +132,17 @@ export default async function TeamMemberPage({
           .order("created_at", { ascending: false })
           .limit(50)
       ).data ?? []) as DocumentRequest[]
+    : [];
+
+  // References
+  const references = canSeeReferencesHere
+    ? ((
+        await supabase
+          .from("employee_references")
+          .select("*")
+          .eq("employee_id", userId)
+          .order("created_at", { ascending: false })
+      ).data ?? []) as EmployeeReference[]
     : [];
 
   const tz =
@@ -474,6 +493,21 @@ export default async function TeamMemberPage({
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* References */}
+      {canSeeReferencesHere && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <ContactRound size={14} />
+            References
+          </h2>
+          <ReferencesEditor
+            employeeId={userId}
+            initialReferences={references}
+            canEdit={canEditReferences}
+          />
         </div>
       )}
     </div>
