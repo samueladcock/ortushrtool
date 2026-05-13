@@ -3,46 +3,162 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Save } from "lucide-react";
+import { GripVertical, Save } from "lucide-react";
 
-const FEATURES = [
-  { route: "/schedule", label: "My Schedule" },
-  { route: "/attendance", label: "My Attendance" },
-  { route: "/requests", label: "Requests" },
-  { route: "/holidays", label: "Holidays" },
-  { route: "/weekly", label: "Weekly Overview" },
-  { route: "/kpis", label: "KPIs" },
-  { route: "/team", label: "Team Directory" },
-  { route: "/attendance/team", label: "Team Attendance" },
-  { route: "/flags", label: "Flags" },
-  { route: "/attendance/all", label: "All Attendance" },
-  { route: "/reports", label: "Reports" },
-  { route: "/admin/schedules", label: "All Schedules" },
-  { route: "/admin/holidays", label: "Manage Holidays" },
-  { route: "/admin/leave-plans", label: "Leave Plans" },
-  { route: "/admin/users", label: "Users" },
-] as const;
+type FeatureGroup = "My Workspace" | "Team" | "Admin" | "Settings";
+
+const FEATURES: ReadonlyArray<{
+  route: string;
+  label: string;
+  group: FeatureGroup;
+}> = [
+  { route: "/schedule", label: "My Schedule", group: "My Workspace" },
+  { route: "/attendance", label: "My Attendance", group: "My Workspace" },
+  { route: "/requests", label: "Schedule Requests", group: "My Workspace" },
+  { route: "/documents", label: "Document Requests", group: "My Workspace" },
+  { route: "/flags", label: "Flags", group: "My Workspace" },
+  { route: "/holidays", label: "Holidays", group: "My Workspace" },
+  { route: "/weekly", label: "Team Calendar", group: "My Workspace" },
+  { route: "/team", label: "Team Directory", group: "My Workspace" },
+  { route: "/kpis", label: "KPIs", group: "My Workspace" },
+  { route: "/performance", label: "Performance", group: "My Workspace" },
+  { route: "/performance/reviews", label: "↳ Reviews", group: "My Workspace" },
+  { route: "/performance/peer-requests", label: "↳ Peer Requests", group: "My Workspace" },
+  { route: "/performance/kpis", label: "↳ KPIs (Performance view)", group: "My Workspace" },
+  { route: "/performance/kudos", label: "↳ Kudos", group: "My Workspace" },
+  { route: "/performance/one-on-ones", label: "↳ 1-on-1s (Performance view)", group: "My Workspace" },
+  { route: "/help", label: "Help & Guide", group: "My Workspace" },
+  { route: "/attendance/team", label: "Team Attendance", group: "Team" },
+  { route: "/one-on-ones", label: "1-on-1s", group: "Team" },
+  { route: "/attendance/all", label: "All Attendance", group: "Admin" },
+  { route: "/reports", label: "Reports", group: "Admin" },
+  { route: "/admin/schedules", label: "All Schedules", group: "Admin" },
+  { route: "/admin/holidays", label: "Manage Holidays", group: "Admin" },
+  { route: "/admin/leave-plans", label: "Leave Plans", group: "Admin" },
+  {
+    route: "/admin/settings/anniversary-benefits",
+    label: "Anniversary Benefits",
+    group: "Admin",
+  },
+  {
+    route: "/admin/document-requests",
+    label: "Document Requests (Admin)",
+    group: "Admin",
+  },
+  { route: "/admin/bulk-import", label: "Bulk Import", group: "Admin" },
+  { route: "/admin/pending-changes", label: "Pending Changes", group: "Admin" },
+  { route: "/admin/performance", label: "Performance", group: "Admin" },
+  { route: "/admin/users", label: "Users", group: "Admin" },
+  { route: "/admin/settings", label: "General", group: "Settings" },
+  { route: "/admin/settings/emails", label: "Emails", group: "Settings" },
+  {
+    route: "/admin/settings/fields",
+    label: "Field Management",
+    group: "Settings",
+  },
+];
+
+const GROUP_ORDER: FeatureGroup[] = [
+  "My Workspace",
+  "Team",
+  "Admin",
+  "Settings",
+];
+
+export type SidebarOrder = Partial<Record<FeatureGroup, string[]>>;
 
 export function FeatureToggles({
   comingSoonRoutes,
+  initialOrder,
 }: {
   comingSoonRoutes: string[];
+  initialOrder: SidebarOrder;
 }) {
   const router = useRouter();
   const [toggled, setToggled] = useState<Set<string>>(
     new Set(comingSoonRoutes)
   );
+  // Resolve display order per group: start from saved order, then append any
+  // features not in the saved order in their default position.
+  const buildInitialOrder = (): Record<FeatureGroup, string[]> => {
+    const out = {} as Record<FeatureGroup, string[]>;
+    for (const g of GROUP_ORDER) {
+      const defaults = FEATURES.filter((f) => f.group === g).map((f) => f.route);
+      const saved = initialOrder[g] ?? [];
+      const seen = new Set<string>();
+      const ordered: string[] = [];
+      for (const r of saved) {
+        if (defaults.includes(r) && !seen.has(r)) {
+          ordered.push(r);
+          seen.add(r);
+        }
+      }
+      for (const r of defaults) {
+        if (!seen.has(r)) {
+          ordered.push(r);
+          seen.add(r);
+        }
+      }
+      out[g] = ordered;
+    }
+    return out;
+  };
+  const [order, setOrder] = useState<Record<FeatureGroup, string[]>>(
+    buildInitialOrder
+  );
+  const [draggingRoute, setDraggingRoute] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+
+  const byRoute = new Map(FEATURES.map((f) => [f.route, f]));
 
   const toggle = (route: string) => {
     setToggled((prev) => {
       const next = new Set(prev);
-      if (next.has(route)) {
-        next.delete(route);
-      } else {
-        next.add(route);
-      }
+      if (next.has(route)) next.delete(route);
+      else next.add(route);
+      return next;
+    });
+  };
+
+  const findGroupOf = (
+    state: Record<FeatureGroup, string[]>,
+    route: string
+  ): FeatureGroup | null => {
+    for (const g of GROUP_ORDER) {
+      if (state[g].includes(route)) return g;
+    }
+    return null;
+  };
+
+  const reorder = (
+    targetGroup: FeatureGroup,
+    fromRoute: string,
+    toRoute: string
+  ) => {
+    if (fromRoute === toRoute) return;
+    setOrder((prev) => {
+      const sourceGroup = findGroupOf(prev, fromRoute);
+      if (!sourceGroup) return prev;
+      const next = { ...prev } as Record<FeatureGroup, string[]>;
+      next[sourceGroup] = next[sourceGroup].filter((r) => r !== fromRoute);
+      const targetList = [...next[targetGroup]];
+      const insertAt = targetList.indexOf(toRoute);
+      if (insertAt === -1) targetList.push(fromRoute);
+      else targetList.splice(insertAt, 0, fromRoute);
+      next[targetGroup] = targetList;
+      return next;
+    });
+  };
+
+  /** Drop on an empty group header → move dragged item to the bottom of that group. */
+  const dropOnGroup = (targetGroup: FeatureGroup, fromRoute: string) => {
+    setOrder((prev) => {
+      const sourceGroup = findGroupOf(prev, fromRoute);
+      if (!sourceGroup || sourceGroup === targetGroup) return prev;
+      const next = { ...prev } as Record<FeatureGroup, string[]>;
+      next[sourceGroup] = next[sourceGroup].filter((r) => r !== fromRoute);
+      next[targetGroup] = [...next[targetGroup], fromRoute];
       return next;
     });
   };
@@ -51,29 +167,37 @@ export function FeatureToggles({
     setSaving(true);
     setMessage("");
     const supabase = createClient();
-
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // Delete all existing coming_soon: keys, then insert active ones
+    // 1) Coming-soon flags
     await supabase
       .from("system_settings")
       .delete()
       .like("key", "coming_soon:%");
-
-    const rows = Array.from(toggled).map((route) => ({
+    const comingSoonRows = Array.from(toggled).map((route) => ({
       key: `coming_soon:${route}`,
       value: "true",
       updated_by: user?.id,
       updated_at: new Date().toISOString(),
     }));
-
-    if (rows.length > 0) {
-      await supabase.from("system_settings").insert(rows);
+    if (comingSoonRows.length > 0) {
+      await supabase.from("system_settings").insert(comingSoonRows);
     }
 
-    setMessage("Feature visibility saved.");
+    // 2) Sidebar order
+    await supabase.from("system_settings").upsert(
+      {
+        key: "sidebar_order",
+        value: JSON.stringify(order),
+        updated_by: user?.id,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" }
+    );
+
+    setMessage("Saved.");
     setSaving(false);
     router.refresh();
   };
@@ -82,11 +206,11 @@ export function FeatureToggles({
     <div className="mx-auto max-w-2xl space-y-6 rounded-xl border border-gray-200 bg-white p-6">
       <div>
         <h2 className="text-lg font-semibold text-gray-900">
-          Feature Visibility
+          Feature Visibility &amp; Order
         </h2>
         <p className="text-sm text-gray-500">
-          Toggle features that are still in progress. Non-super-admin users will
-          see a &quot;Coming Soon&quot; page instead.
+          Toggle features that are still in progress (non-super-admins see
+          &quot;Coming Soon&quot;), and drag rows to reorder them in the sidebar.
         </p>
       </div>
 
@@ -96,31 +220,103 @@ export function FeatureToggles({
         </div>
       )}
 
-      <div className="divide-y divide-gray-100">
-        {FEATURES.map(({ route, label }) => (
-          <div
-            key={route}
-            className="flex items-center justify-between py-3"
-          >
-            <div>
-              <p className="text-sm font-medium text-gray-700">{label}</p>
-              <p className="text-xs text-gray-400">{route}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => toggle(route)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                toggled.has(route) ? "bg-yellow-500" : "bg-gray-200"
-              }`}
+      <div className="space-y-5">
+        {GROUP_ORDER.map((group) => {
+          const routes = order[group] ?? [];
+          return (
+            <div
+              key={group}
+              onDragOver={(e) => {
+                if (draggingRoute) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                }
+              }}
+              onDrop={(e) => {
+                if (draggingRoute) {
+                  e.preventDefault();
+                  dropOnGroup(group, draggingRoute);
+                }
+                setDraggingRoute(null);
+              }}
             >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  toggled.has(route) ? "translate-x-5" : "translate-x-0"
-                }`}
-              />
-            </button>
-          </div>
-        ))}
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                {group}
+              </p>
+              {routes.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-200 px-3 py-3 text-center text-[11px] text-gray-400">
+                  Drag items here.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100 rounded-lg border border-gray-100">
+                {routes.map((route) => {
+                  const f = byRoute.get(route);
+                  if (!f) return null;
+                  const isDragging = draggingRoute === route;
+                  return (
+                    <div
+                      key={route}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = "move";
+                        setDraggingRoute(route);
+                      }}
+                      onDragOver={(e) => {
+                        if (draggingRoute && draggingRoute !== route) {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          e.stopPropagation();
+                        }
+                      }}
+                      onDrop={(e) => {
+                        if (draggingRoute && draggingRoute !== route) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          reorder(group, draggingRoute, route);
+                        }
+                        setDraggingRoute(null);
+                      }}
+                      onDragEnd={() => setDraggingRoute(null)}
+                      className={`flex items-center gap-2 px-3 py-2.5 ${
+                        isDragging ? "opacity-50" : ""
+                      }`}
+                    >
+                      <GripVertical
+                        size={14}
+                        className="shrink-0 cursor-grab text-gray-400 active:cursor-grabbing"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-700">
+                          {f.label}
+                        </p>
+                        <p className="text-xs text-gray-400">{f.route}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggle(route)}
+                        title={
+                          toggled.has(route)
+                            ? "Marked as Coming Soon"
+                            : "Live"
+                        }
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          toggled.has(route) ? "bg-yellow-500" : "bg-gray-200"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            toggled.has(route) ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <button

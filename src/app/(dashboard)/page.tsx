@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { startOfWeek, endOfWeek, addDays, format, parseISO, differenceInYears } from "date-fns";
 import { WhosOut } from "@/components/dashboard/whos-out";
+import { RecentKudos } from "@/components/dashboard/recent-kudos";
+import type { KudosWithUsers } from "@/types/database";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { LEAVE_TYPE_LABELS, UNIVERSAL_LEAVE_TYPES, LEAVE_TYPES } from "@/lib/constants";
 import { prorateLeave, getRenewalStart } from "@/lib/leave-proration";
@@ -344,6 +346,30 @@ export default async function DashboardPage() {
     seenHols.add(key);
     return true;
   });
+
+  // --- Recent public kudos (plus any private ones the viewer is part of) ---
+  const { data: kudosRows } = await supabase
+    .from("kudos")
+    .select(
+      "*, sender:users!kudos_sender_id_fkey(full_name, preferred_name, email), recipient:users!kudos_recipient_id_fkey(full_name, preferred_name, email)"
+    )
+    .order("created_at", { ascending: false })
+    .limit(5);
+  type RawKudosRow = Omit<KudosWithUsers, "sender" | "recipient"> & {
+    sender: Array<{ full_name: string; preferred_name: string | null; email: string }> | null;
+    recipient: Array<{ full_name: string; preferred_name: string | null; email: string }> | null;
+  };
+  const recentKudos: KudosWithUsers[] = ((kudosRows ?? []) as unknown as RawKudosRow[]).map(
+    (k) => ({
+      ...k,
+      sender:
+        Array.isArray(k.sender) && k.sender.length > 0 ? k.sender[0] : null,
+      recipient:
+        Array.isArray(k.recipient) && k.recipient.length > 0
+          ? k.recipient[0]
+          : null,
+    })
+  );
 
   // --- Upcoming Events (birthdays, anniversaries, first/last days) ---
   const upcomingEvents: {
@@ -685,6 +711,8 @@ export default async function DashboardPage() {
         teamMemberIds={[...teamMemberIds]}
         directReportIds={[...directReportIds]}
       />
+
+      <RecentKudos kudos={recentKudos} />
     </div>
   );
 }

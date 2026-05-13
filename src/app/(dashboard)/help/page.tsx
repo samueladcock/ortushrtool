@@ -1,13 +1,15 @@
 import { getCurrentUser } from "@/lib/auth/helpers";
 import { hasRole } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
-import { HelpContent } from "@/components/help/help-content";
+import { HelpShell } from "@/components/help/help-shell";
 
 export default async function HelpPage() {
   const user = await getCurrentUser();
   const isManager = hasRole(user.role, "manager");
   const isAdmin = hasRole(user.role, "hr_admin");
   const isSuperAdmin = user.role === "super_admin";
+  const isHrSupport = user.role === "hr_support";
+  const canEdit = isAdmin || isHrSupport;
 
   const supabase = await createClient();
   const { data: articles } = await supabase
@@ -26,11 +28,13 @@ export default async function HelpPage() {
           Learn how to use the Ortus Club HR Tool
         </p>
       </div>
-      <HelpContent
+      <HelpShell
         articles={articles ?? []}
         isManager={isManager}
         isAdmin={isAdmin}
         isSuperAdmin={isSuperAdmin}
+        canEdit={canEdit}
+        queueWarning={isHrSupport && !isAdmin}
       />
     </div>
   );

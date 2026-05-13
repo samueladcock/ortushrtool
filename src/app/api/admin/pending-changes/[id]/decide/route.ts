@@ -9,12 +9,16 @@ import {
   applyMultiRowInsert,
   applyMultiRowUpdate,
   applyMultiRowDelete,
+  applyScheduleWeeklyChange,
+  applyHelpArticleChange,
   type BulkImportPayload,
   type FieldValueUpsertPayload,
   type FieldValueDeletePayload,
   type MultiRowInsertPayload,
   type MultiRowUpdatePayload,
   type MultiRowDeletePayload,
+  type ScheduleWeeklyChangePayload,
+  type HelpArticleChangePayload,
 } from "@/lib/pending-changes";
 
 type Decision = "approve" | "reject";
@@ -109,6 +113,20 @@ export async function POST(
           admin,
           authUser.id,
           change.payload as MultiRowDeletePayload
+        );
+        break;
+      case "schedule_weekly_change":
+        result = await applyScheduleWeeklyChange(
+          admin,
+          authUser.id,
+          change.payload as ScheduleWeeklyChangePayload
+        );
+        break;
+      case "help_article_change":
+        result = await applyHelpArticleChange(
+          admin,
+          authUser.id,
+          change.payload as HelpArticleChangePayload
         );
         break;
       default:

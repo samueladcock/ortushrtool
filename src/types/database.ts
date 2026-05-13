@@ -542,3 +542,112 @@ export interface PendingChangeWithRequester extends PendingChange {
   target?: MiniUser | null;
   decider?: { full_name: string; email: string } | null;
 }
+
+// ─── Performance ──────────────────────────────────────────────────────────
+
+export type ReviewQuestionRole = "self" | "manager" | "peer";
+
+export interface ReviewQuestion {
+  id: string;
+  text: string;
+  roles: ReviewQuestionRole[];
+}
+
+export interface ReviewFormTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  questions: ReviewQuestion[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ReviewCycleStatus = "draft" | "open" | "closed";
+
+export interface ReviewCycle {
+  id: string;
+  name: string;
+  template_id: string | null;
+  start_date: string;
+  end_date: string;
+  self_due: string | null;
+  manager_due: string | null;
+  peer_due: string | null;
+  status: ReviewCycleStatus;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ReviewResponses = Record<
+  string,
+  { rating: number | null; comment: string }
+>;
+
+export type ReviewStatus =
+  | "not_started"
+  | "self_done"
+  | "manager_done"
+  | "signed_off";
+
+export interface Review {
+  id: string;
+  cycle_id: string;
+  employee_id: string;
+  self_responses: ReviewResponses;
+  manager_responses: ReviewResponses;
+  self_submitted_at: string | null;
+  manager_submitted_at: string | null;
+  signed_off_at: string | null;
+  manager_reviewer_id: string | null;
+  status: ReviewStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PeerFeedbackStatus = "pending" | "completed" | "declined";
+
+export interface PeerFeedbackRequest {
+  id: string;
+  review_id: string;
+  requested_by: string;
+  reviewer_id: string;
+  status: PeerFeedbackStatus;
+  response: ReviewResponses;
+  anonymous: boolean;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface OneOnOne {
+  id: string;
+  manager_id: string | null;
+  employee_id: string;
+  scheduled_date: string;
+  agenda: string | null;
+  shared_notes: string | null;
+  manager_private_notes: string | null;
+  employee_private_notes: string | null;
+  /** Additional participant user IDs (excluding subject + manager). */
+  participants: string[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type KudosVisibility = "public" | "private";
+
+export interface Kudos {
+  id: string;
+  recipient_id: string;
+  sender_id: string | null;
+  message: string;
+  visibility: KudosVisibility;
+  created_at: string;
+}
+
+export interface KudosWithUsers extends Kudos {
+  sender?: { full_name: string; preferred_name: string | null; email: string } | null;
+  recipient?: { full_name: string; preferred_name: string | null; email: string } | null;
+}

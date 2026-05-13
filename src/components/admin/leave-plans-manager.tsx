@@ -1,25 +1,32 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Save, X, Pencil } from "lucide-react";
+import { Plus, Trash2, Save, Pencil, ChevronDown, ChevronRight, Users } from "lucide-react";
 import { LEAVE_TYPES } from "@/lib/constants";
 import type { LeavePlan, LeavePlanAllocation, GrantType } from "@/types/database";
 
 interface Props {
   initialPlans: LeavePlan[];
   initialAllocations: LeavePlanAllocation[];
+  assignmentCounts: Record<string, number>;
 }
 
 const ALL_LEAVE_TYPE_KEYS = Object.keys(LEAVE_TYPES);
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-export function LeavePlansManager({ initialPlans, initialAllocations }: Props) {
+export function LeavePlansManager({
+  initialPlans,
+  initialAllocations,
+  assignmentCounts,
+}: Props) {
   const router = useRouter();
   const [plans, setPlans] = useState(initialPlans);
   const [allocations, setAllocations] = useState(initialAllocations);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newPlanName, setNewPlanName] = useState("");
   const [newPlanDesc, setNewPlanDesc] = useState("");
@@ -93,6 +100,7 @@ export function LeavePlansManager({ initialPlans, initialAllocations }: Props) {
 
   const startEdit = (plan: LeavePlan) => {
     setEditingPlanId(plan.id);
+    setExpandedPlanId(plan.id); // expand when starting to edit
     const current = getAllocationsForPlan(plan.id);
     const full: Record<string, number> = {};
     for (const k of ALL_LEAVE_TYPE_KEYS) {
@@ -277,103 +285,154 @@ export function LeavePlansManager({ initialPlans, initialAllocations }: Props) {
         </div>
       )}
 
-      {plans.map((plan) => {
-        const isEditing = editingPlanId === plan.id;
-        const planAllocs = isEditing ? editAllocations : getAllocationsForPlan(plan.id);
+      <div className="space-y-2">
+        {plans.map((plan) => {
+          const isEditing = editingPlanId === plan.id;
+          const isExpanded = expandedPlanId === plan.id || isEditing;
+          const planAllocs = isEditing
+            ? editAllocations
+            : getAllocationsForPlan(plan.id);
+          const count = assignmentCounts[plan.id] ?? 0;
 
-        return (
-          <div key={plan.id} className="rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
-                {plan.description && (
-                  <p className="text-sm text-gray-500">{plan.description}</p>
-                )}
-                <p className="text-xs text-gray-400">
-                  {plan.grant_type === "anniversary"
-                    ? "Granted on work anniversary (1st year onwards)"
-                    : plan.grant_type === "hire_date"
-                      ? "Granted on hire date each year"
-                      : `Renews every ${MONTHS[(plan.renewal_month ?? 1) - 1]} ${plan.renewal_day ?? 1}`}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                {isEditing ? (
-                  <>
-                    <button
-                      onClick={() => saveEdit(plan.id)}
-                      disabled={saving}
-                      className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                    >
-                      <Save size={14} />
-                      {saving ? "Saving..." : "Save"}
-                    </button>
-                    <button
-                      onClick={() => setEditingPlanId(null)}
-                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => startEdit(plan)}
-                      className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                      title="Edit allocations"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => deletePlan(plan.id)}
-                      className="rounded p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600"
-                      title="Delete plan"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {ALL_LEAVE_TYPE_KEYS.map((key) => {
-                  const days = planAllocs[key] ?? 0;
-                  return (
-                    <div key={key} className="rounded-lg bg-gray-50 p-3">
-                      <p className="text-xs text-gray-500">
-                        {LEAVE_TYPES[key as keyof typeof LEAVE_TYPES].label}
-                      </p>
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.5"
-                          value={editAllocations[key] ?? 0}
-                          onChange={(e) =>
-                            setEditAllocations({
-                              ...editAllocations,
-                              [key]: parseFloat(e.target.value) || 0,
-                            })
-                          }
-                          className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-                        />
-                      ) : (
-                        <p className="mt-1 text-xl font-bold text-gray-900">
-                          {days}
-                          <span className="ml-1 text-xs font-normal text-gray-400">
-                            day{days !== 1 ? "s" : ""}
-                          </span>
-                        </p>
-                      )}
+          return (
+            <div
+              key={plan.id}
+              className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+            >
+              <div className="flex items-center gap-3 px-6 py-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedPlanId((prev) => (prev === plan.id ? null : plan.id))
+                  }
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
+                  {isExpanded ? (
+                    <ChevronDown size={16} className="shrink-0 text-gray-400" />
+                  ) : (
+                    <ChevronRight size={16} className="shrink-0 text-gray-400" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-semibold text-gray-900">
+                        {plan.name}
+                      </h3>
+                      <span className="text-xs text-gray-400">
+                        {plan.grant_type === "anniversary"
+                          ? "Granted on work anniversary"
+                          : plan.grant_type === "hire_date"
+                            ? "Granted on hire date"
+                            : `Renews ${MONTHS[(plan.renewal_month ?? 1) - 1]} ${plan.renewal_day ?? 1}`}
+                      </span>
                     </div>
-                  );
-                })}
+                    {plan.description && (
+                      <p className="truncate text-xs text-gray-500">
+                        {plan.description}
+                      </p>
+                    )}
+                  </div>
+                </button>
+                <Link
+                  href={`/admin/leave-plans/${plan.id}/assignees`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                  title="View assignees"
+                >
+                  <Users size={12} />
+                  {count} user{count === 1 ? "" : "s"}
+                </Link>
+                <div className="flex shrink-0 gap-1">
+                  {isEditing ? (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          saveEdit(plan.id);
+                        }}
+                        disabled={saving}
+                        className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                      >
+                        <Save size={12} />
+                        {saving ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPlanId(null);
+                        }}
+                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEdit(plan);
+                        }}
+                        className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                        title="Edit allocations"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deletePlan(plan.id);
+                        }}
+                        className="rounded p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600"
+                        title="Delete plan"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
+              {isExpanded && (
+                <div className="border-t border-gray-100 p-6">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {ALL_LEAVE_TYPE_KEYS.map((key) => {
+                      const days = planAllocs[key] ?? 0;
+                      return (
+                        <div key={key} className="rounded-lg bg-gray-50 p-3">
+                          <p className="text-xs text-gray-500">
+                            {LEAVE_TYPES[key as keyof typeof LEAVE_TYPES].label}
+                          </p>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={editAllocations[key] ?? 0}
+                              onChange={(e) =>
+                                setEditAllocations({
+                                  ...editAllocations,
+                                  [key]: parseFloat(e.target.value) || 0,
+                                })
+                              }
+                              className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                            />
+                          ) : (
+                            <p className="mt-1 text-xl font-bold text-gray-900">
+                              {days}
+                              <span className="ml-1 text-xs font-normal text-gray-400">
+                                day{days !== 1 ? "s" : ""}
+                              </span>
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }

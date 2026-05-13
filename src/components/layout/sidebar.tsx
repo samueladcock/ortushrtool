@@ -28,6 +28,8 @@ import {
   ListTree,
   Upload,
   Inbox,
+  Trophy,
+  CalendarClock,
 } from "lucide-react";
 import { useState } from "react";
 import type { UserRole } from "@/types/database";
@@ -69,6 +71,7 @@ const navSections: NavSection[] = [
       { label: "Team Calendar", href: "/weekly", icon: <CalendarDays size={20} />, minRole: "employee" },
       { label: "Team Directory", href: "/team", icon: <UsersRound size={20} />, minRole: "employee" },
       { label: "KPIs", href: "/kpis", icon: <Target size={20} />, minRole: "employee" },
+      { label: "Performance", href: "/performance", icon: <Trophy size={20} />, minRole: "employee" },
       { label: "Help & Guide", href: "/help", icon: <HelpCircle size={20} />, minRole: "employee" },
     ],
   },
@@ -77,6 +80,7 @@ const navSections: NavSection[] = [
     minRole: "manager",
     items: [
       { label: "Team Attendance", href: "/attendance/team", icon: <Clock size={20} />, minRole: "manager" },
+      { label: "1-on-1s", href: "/one-on-ones", icon: <CalendarClock size={20} />, minRole: "manager" },
     ],
   },
   {
@@ -92,8 +96,8 @@ const navSections: NavSection[] = [
       { label: "Document Requests", href: "/admin/document-requests", icon: <FileText size={20} />, minRole: "hr_admin" },
       { label: "Bulk Import", href: "/admin/bulk-import", icon: <Upload size={20} />, minRole: "hr_admin", roles: ["hr_support", "hr_admin", "super_admin"] },
       { label: "Pending Changes", href: "/admin/pending-changes", icon: <Inbox size={20} />, minRole: "hr_admin" },
+      { label: "Performance", href: "/admin/performance", icon: <Trophy size={20} />, minRole: "hr_admin" },
       { label: "Users", href: "/admin/users", icon: <Users size={20} />, minRole: "hr_admin" },
-      { label: "Help & Guide", href: "/admin/help", icon: <HelpCircle size={20} />, minRole: "hr_admin" },
     ],
   },
 ];
@@ -108,20 +112,73 @@ const settingsSubItems: NavItem[] = [
 export function Sidebar({
   userRole,
   comingSoonRoutes = [],
+  sidebarOrder = {},
+  badges = {},
 }: {
   userRole: UserRole;
   comingSoonRoutes?: string[];
+  /** Saved per-group route order (group title → ordered hrefs). */
+  sidebarOrder?: Record<string, string[]>;
+  /** Optional count badges per href, e.g. unread counts. */
+  badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const settingsOpen = pathname.startsWith("/admin/settings");
   const [settingsExpanded, setSettingsExpanded] = useState(settingsOpen);
 
+  // Resolve which section each item belongs to, allowing the saved order to
+  // override the hardcoded default. An item's section is whichever group
+  // contains its href in sidebarOrder; otherwise the section it was declared
+  // in.
+  const hrefToSavedGroup = new Map<string, string>();
+  for (const [g, list] of Object.entries(sidebarOrder)) {
+    for (const href of list) hrefToSavedGroup.set(href, g);
+  }
+  const allItems: Array<{
+    item: NavItem;
+    section: string;
+    defaultSection: string;
+  }> = [];
+  for (const s of navSections) {
+    for (const it of s.items) {
+      const resolvedSection = hrefToSavedGroup.get(it.href) ?? s.title;
+      allItems.push({ item: it, section: resolvedSection, defaultSection: s.title });
+    }
+  }
+
+  const applyOrder = (items: NavItem[], groupKey: string): NavItem[] => {
+    const saved = sidebarOrder[groupKey];
+    if (!saved || saved.length === 0) return items;
+    const byHref = new Map(items.map((i) => [i.href, i] as const));
+    const ordered: NavItem[] = [];
+    const seen = new Set<string>();
+    for (const href of saved) {
+      const it = byHref.get(href);
+      if (it) {
+        ordered.push(it);
+        seen.add(href);
+      }
+    }
+    for (const it of items) {
+      if (!seen.has(it.href)) ordered.push(it);
+    }
+    return ordered;
+  };
+
   const navContent = (
     <nav className="flex flex-col gap-1 p-4">
       {navSections.map((section) => {
-        const visibleItems = section.items.filter((item) =>
-          item.roles ? item.roles.includes(userRole) : hasRole(userRole, item.minRole)
+        const itemsForThisSection = allItems
+          .filter((x) => x.section === section.title)
+          .map((x) => x.item);
+        const visibleItems = applyOrder(
+          itemsForThisSection.filter((item) =>
+            item.roles
+              ? item.roles.includes(userRole)
+              : hasRole(userRole, item.minRole)
+          ),
+          section.title
         );
         if (visibleItems.length === 0) return null;
 
@@ -152,6 +209,11 @@ export function Sidebar({
                 >
                   {item.icon}
                   {item.label}
+                  {(badges[item.href] ?? 0) > 0 && (
+                    <span className="ml-auto rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                      {badges[item.href]}
+                    </span>
+                  )}
                   {comingSoonRoutes.some((r) => item.href === r || item.href.startsWith(r + "/")) && userRole !== "super_admin" && (
                     <span className="ml-auto rounded bg-yellow-100 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700">
                       Soon
@@ -191,7 +253,7 @@ export function Sidebar({
           </button>
           {settingsExpanded && (
             <div className="ml-4 mt-1 space-y-0.5 border-l border-gray-200 pl-3">
-              {settingsSubItems.map((item) => {
+              {applyOrder(settingsSubItems, "Settings").map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <Link

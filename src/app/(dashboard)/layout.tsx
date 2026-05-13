@@ -12,19 +12,47 @@ export default async function DashboardLayout({
   const user = await getCurrentUser();
   const supabase = await createClient();
 
-  const { data: settings } = await supabase
-    .from("system_settings")
-    .select("key")
-    .like("key", "coming_soon:%")
-    .eq("value", "true");
+  const [{ data: comingSoon }, { data: orderRow }, { count: pendingPeerCount }] =
+    await Promise.all([
+      supabase
+        .from("system_settings")
+        .select("key")
+        .like("key", "coming_soon:%")
+        .eq("value", "true"),
+      supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "sidebar_order")
+        .maybeSingle(),
+      supabase
+        .from("peer_feedback_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("reviewer_id", user.id)
+        .eq("status", "pending"),
+    ]);
 
-  const comingSoonRoutes = (settings ?? []).map((s) =>
+  const comingSoonRoutes = (comingSoon ?? []).map((s) =>
     s.key.replace("coming_soon:", "")
   );
+  let sidebarOrder: Record<string, string[]> = {};
+  if (orderRow?.value) {
+    try {
+      sidebarOrder = JSON.parse(orderRow.value) as Record<string, string[]>;
+    } catch {
+      sidebarOrder = {};
+    }
+  }
 
   return (
     <div className="flex h-full">
-      <Sidebar userRole={user.role} comingSoonRoutes={comingSoonRoutes} />
+      <Sidebar
+        userRole={user.role}
+        comingSoonRoutes={comingSoonRoutes}
+        sidebarOrder={sidebarOrder}
+        badges={{
+          "/performance": pendingPeerCount ?? 0,
+        }}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header user={user} />
         <main className="flex-1 overflow-y-auto p-6">

@@ -40,6 +40,30 @@ export type MultiRowDeletePayload = {
   row_id: string;
 };
 
+export type HelpArticleChangePayload =
+  | { op: "insert"; row: Record<string, unknown> }
+  | { op: "update"; id: string; patch: Record<string, unknown> }
+  | { op: "delete"; id: string }
+  | {
+      op: "bulk_update";
+      filter: Record<string, unknown>;
+      patch: Record<string, unknown>;
+    }
+  | { op: "bulk_delete"; filter: Record<string, unknown> };
+
+export type ScheduleWeeklyChangePayload = {
+  employee_id: string;
+  effective_from: string;
+  days: Array<{
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+    is_rest_day: boolean;
+    work_location: string;
+    schedule_id?: string;
+  }>;
+};
+
 type Admin = ReturnType<typeof createAdminClient>;
 
 export type ApplyResult = {
@@ -232,4 +256,85 @@ export async function applyMultiRowDelete(
     .eq("id", p.row_id);
   if (error) return { ok: false, error: error.message };
   return { ok: true, cellsWritten: 1 };
+}
+
+export async function applyHelpArticleChange(
+  admin: Admin,
+  _actorId: string,
+  p: HelpArticleChangePayload
+): Promise<ApplyResult> {
+  void _actorId;
+  switch (p.op) {
+    case "insert": {
+      const { error } = await admin.from("help_articles").insert(p.row);
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, cellsWritten: 1 };
+    }
+    case "update": {
+      const { error } = await admin
+        .from("help_articles")
+        .update(p.patch)
+        .eq("id", p.id);
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, cellsWritten: 1 };
+    }
+    case "delete": {
+      const { error } = await admin.from("help_articles").delete().eq("id", p.id);
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, cellsWritten: 1 };
+    }
+    case "bulk_update": {
+      let q = admin.from("help_articles").update(p.patch);
+      for (const [k, v] of Object.entries(p.filter)) {
+        q = q.eq(k, v as string | number | boolean | null);
+      }
+      const { error } = await q;
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, cellsWritten: 1 };
+    }
+    case "bulk_delete": {
+      let q = admin.from("help_articles").delete();
+      for (const [k, v] of Object.entries(p.filter)) {
+        q = q.eq(k, v as string | number | boolean | null);
+      }
+      const { error } = await q;
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, cellsWritten: 1 };
+    }
+  }
+}
+
+export async function applyScheduleWeeklyChange(
+  admin: Admin,
+  _actorId: string,
+  p: ScheduleWeeklyChangePayload
+): Promise<ApplyResult> {
+  void _actorId;
+  let cellsWritten = 0;
+  const errors: string[] = [];
+  for (const d of p.days) {
+    const row = {
+      employee_id: p.employee_id,
+      day_of_week: d.day_of_week,
+      start_time: d.start_time,
+      end_time: d.end_time,
+      is_rest_day: d.is_rest_day,
+      work_location: d.work_location,
+      effective_from: p.effective_from,
+    };
+    if (d.schedule_id) {
+      const { error } = await admin
+        .from("schedules")
+        .update(row)
+        .eq("id", d.schedule_id);
+      if (error) errors.push(`Day ${d.day_of_week}: ${error.message}`);
+      else cellsWritten++;
+    } else {
+      const { error } = await admin.from("schedules").insert(row);
+      if (error) errors.push(`Day ${d.day_of_week}: ${error.message}`);
+      else cellsWritten++;
+    }
+  }
+  if (errors.length > 0) return { ok: false, error: errors.join("; "), errors };
+  return { ok: true, cellsWritten };
 }

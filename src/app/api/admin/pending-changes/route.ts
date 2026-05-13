@@ -24,17 +24,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const allowedRoles = new Set(["hr_support", "hr_admin", "super_admin"]);
-  if (!allowedRoles.has(caller.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   const body = await request.json().catch(() => ({}));
   const { change_type, target_employee_id, description, payload } = body;
   if (!change_type || !description || !payload) {
     return NextResponse.json(
       { error: "change_type, description, and payload are required" },
       { status: 400 }
+    );
+  }
+
+  // hr_support / hr_admin / super_admin can queue changes against any
+  // employee. Everyone else (employee, manager) can only queue changes
+  // against their own profile.
+  const hrRoles = new Set(["hr_support", "hr_admin", "super_admin"]);
+  if (!hrRoles.has(caller.role) && target_employee_id !== authUser.id) {
+    return NextResponse.json(
+      { error: "Can only request changes to your own profile" },
+      { status: 403 }
     );
   }
 
