@@ -9,7 +9,9 @@ import type { SystemSetting } from "@/types/database";
 const SETTING_LABELS: Record<string, string> = {
   late_tolerance_minutes: "Late Arrival Tolerance (minutes)",
   early_tolerance_minutes: "Early Departure Tolerance (minutes)",
-  shift_cutoff_hour: "Shift Cutoff Hour (activity before this is previous day's overtime)",
+  shift_cutoff_hour: "Day Start Time (activity before this time is attributed to the previous day's overtime)",
+  pre_shift_window_hours:
+    "Pre-shift Window (hours) — activity within this many hours of a scheduled start counts as today's clock-in",
   attendance_flag_emails_enabled: "Send Attendance Flag Emails",
   birthday_emails_enabled: "Send Birthday Greeting Emails",
   anniversary_emails_enabled: "Send Work Anniversary Emails",
@@ -20,6 +22,15 @@ const BOOLEAN_SETTINGS = new Set([
   "birthday_emails_enabled",
   "anniversary_emails_enabled",
 ]);
+
+/** Settings stored as an integer hour (0–23). Rendered as a time picker. */
+const HOUR_OF_DAY_SETTINGS = new Set(["shift_cutoff_hour"]);
+
+function formatHour(h: number): string {
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:00 ${ampm}`;
+}
 
 export function SettingsForm({ settings }: { settings: SystemSetting[] }) {
   const router = useRouter();
@@ -86,6 +97,20 @@ export function SettingsForm({ settings }: { settings: SystemSetting[] }) {
                 }`}
               />
             </button>
+          ) : HOUR_OF_DAY_SETTINGS.has(key) ? (
+            <select
+              value={value}
+              onChange={(e) =>
+                setValues({ ...values, [key]: e.target.value })
+              }
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>
+                  {formatHour(h)}
+                </option>
+              ))}
+            </select>
           ) : (
             <input
               type="text"

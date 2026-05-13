@@ -41,6 +41,19 @@ export async function GET(request: Request) {
       .maybeSingle();
     const shiftCutoffHour = parseInt(cutoffSetting?.value ?? "5");
 
+    // Pre-shift window: how many hours before the scheduled start can activity
+    // still count as today's clock-in. Anything earlier than (start − window)
+    // and accompanied by later activity is ambiguous (multi-session); we
+    // surface those as "inconclusive" rather than guess. Bounded below by
+    // shift_cutoff_hour so the two settings never fight.
+    const { data: preShiftSetting } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "pre_shift_window_hours")
+      .maybeSingle();
+    const preShiftWindowHours = parseFloat(preShiftSetting?.value ?? "5");
+    const preShiftWindowMinutes = Math.round(preShiftWindowHours * 60);
+
     // Fetch all employees from DeskTime
     const dtEmployees = await fetchAllEmployees(syncDate);
 
@@ -197,14 +210,19 @@ export async function GET(request: Request) {
       const dtTimezone = dtEmp.timezone;
 
       // Determine the "too early" cutoff for clock-in. With a schedule, anything
-      // more than 2 hours before scheduled start is treated as previous day's
-      // overtime; without one, fall back to the global shift_cutoff_hour.
+      // more than (pre_shift_window_hours) before scheduled start is treated
+      // as previous day's overtime; without a schedule, fall back to the
+      // global shift_cutoff_hour. Bounded below by SHIFT_CUTOFF_MINUTES so
+      // activity earlier than the cutoff is never counted as today's.
       const scheduledStartMinutesForCutoff = hasSchedule
         ? timeToMinutes(scheduledStart!.slice(0, 5))
         : null;
       const earlyThresholdMinutes =
         scheduledStartMinutesForCutoff !== null
-          ? Math.max(0, scheduledStartMinutesForCutoff - 120)
+          ? Math.max(
+              SHIFT_CUTOFF_MINUTES,
+              scheduledStartMinutesForCutoff - preShiftWindowMinutes
+            )
           : SHIFT_CUTOFF_MINUTES;
 
       // When pre-shift activity exists AND the day continues into / past the
