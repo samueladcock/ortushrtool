@@ -300,22 +300,29 @@ export default async function DashboardPage() {
   });
 
 
-  // --- Upcoming Holidays ---
+  // --- Upcoming Holidays (next 30 days, matching the upcoming events window) ---
+  const upcomingHolidayWindowEnd = format(addDays(now, 30), "yyyy-MM-dd");
   const upcomingHols: { name: string; date: string; country: string }[] = [];
   for (const h of upcomingHolidays.data ?? []) {
     const hDate = parseISO(h.date);
     let matchDate: Date | null = null;
 
     if (h.is_recurring) {
-      // Check if the recurring date falls within the next week
+      // Try this year's date first; fall back to next year's if it's already
+      // passed (so e.g. Jan 1 still shows when viewing in late December).
       const thisYear = new Date(now.getFullYear(), hDate.getMonth(), hDate.getDate());
-      if (format(thisYear, "yyyy-MM-dd") >= today && format(thisYear, "yyyy-MM-dd") <= nextWeekEnd) {
+      const thisYearStr = format(thisYear, "yyyy-MM-dd");
+      if (thisYearStr >= today && thisYearStr <= upcomingHolidayWindowEnd) {
         matchDate = thisYear;
+      } else {
+        const nextYear = new Date(now.getFullYear() + 1, hDate.getMonth(), hDate.getDate());
+        const nextYearStr = format(nextYear, "yyyy-MM-dd");
+        if (nextYearStr >= today && nextYearStr <= upcomingHolidayWindowEnd) {
+          matchDate = nextYear;
+        }
       }
-    } else {
-      if (h.date >= today && h.date <= nextWeekEnd) {
-        matchDate = hDate;
-      }
+    } else if (h.date >= today && h.date <= upcomingHolidayWindowEnd) {
+      matchDate = hDate;
     }
 
     if (matchDate) {

@@ -20,7 +20,7 @@ export function Header({ user }: { user: User }) {
   const roleBadgeColor: Record<string, string> = {
     employee: "bg-gray-100 text-gray-700",
     manager: "bg-blue-100 text-blue-700",
-    hr_recruiter: "bg-pink-100 text-pink-700",
+    hr_support: "bg-pink-100 text-pink-700",
     hr_admin: "bg-purple-100 text-purple-700",
     super_admin: "bg-red-100 text-red-700",
   };
@@ -28,7 +28,7 @@ export function Header({ user }: { user: User }) {
   const roleLabel: Record<string, string> = {
     employee: "Employee",
     manager: "Manager",
-    hr_recruiter: "HR Recruiter",
+    hr_support: "HR Support",
     hr_admin: "HR Admin",
     super_admin: "Super Admin",
   };

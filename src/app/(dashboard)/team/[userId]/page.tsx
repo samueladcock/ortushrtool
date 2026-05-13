@@ -7,11 +7,15 @@ import {
   DOCUMENT_TYPE_LABELS,
   type HolidayCountry,
   type DocumentRequest,
-  type EmployeeReference,
+  type ProfileField,
+  type ProfileFieldSection,
+  type ProfileFieldValue,
+  type ProfileFieldValueRow,
 } from "@/types/database";
 import Link from "next/link";
-import { ArrowLeft, Mail, Building2, Clock, Globe, Users, MapPin, Cake, BriefcaseBusiness, CalendarX, Flag, FileText, ContactRound } from "lucide-react";
-import { ReferencesEditor } from "@/components/profile/references-editor";
+import { ArrowLeft, Mail, Building2, Clock, Globe, Users, MapPin, Cake, BriefcaseBusiness, CalendarX, Flag, FileText } from "lucide-react";
+import { CustomFieldsSection } from "@/components/profile/custom-fields";
+import { canSeeFieldValue } from "@/lib/profile-fields";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { AvatarUpload } from "@/components/shared/avatar-upload";
@@ -39,7 +43,7 @@ export default async function TeamMemberPage({
   const { userId } = await params;
   const isOwnProfile = currentUser.id === userId;
   const isAdmin = hasRole(currentUser.role, "hr_admin");
-  const isRecruiter = currentUser.role === "hr_recruiter";
+  const isRecruiter = currentUser.role === "hr_support";
   const canSeeEndDate = isAdmin || isOwnProfile;
   // Use admin client to bypass RLS — any employee can view any profile
   const supabase = createAdminClient();
@@ -57,10 +61,6 @@ export default async function TeamMemberPage({
 
   // Same visibility rules for document requests.
   const canSeeDocuments = canSeeFlags;
-  // References: visible to flag-viewers AND recruiters.
-  const canSeeReferencesHere = canSeeFlags || isRecruiter;
-  // Self + admins + recruiters can edit references.
-  const canEditReferences = isAdmin || isOwnProfile || isRecruiter;
 
   if (!user) {
     return (
@@ -134,16 +134,61 @@ export default async function TeamMemberPage({
       ).data ?? []) as DocumentRequest[]
     : [];
 
-  // References
-  const references = canSeeReferencesHere
-    ? ((
-        await supabase
-          .from("employee_references")
-          .select("*")
-          .eq("employee_id", userId)
-          .order("created_at", { ascending: false })
-      ).data ?? []) as EmployeeReference[]
-    : [];
+  // Custom profile fields — sections, fields, scalar values, and multi-row
+  // values for this employee. RLS enforces per-field visibility.
+  const [
+    { data: customSections },
+    { data: customFields },
+    { data: customValues },
+    { data: multiRowValues },
+  ] = await Promise.all([
+    supabase
+      .from("profile_field_sections")
+      .select("*")
+      .order("sort_order")
+      .order("name"),
+    supabase.from("profile_fields").select("*").order("sort_order"),
+    supabase.from("profile_field_values").select("*").eq("employee_id", userId),
+    supabase
+      .from("profile_field_value_rows")
+      .select("*")
+      .eq("employee_id", userId)
+      .order("row_index"),
+  ]);
+  const customSectionsList = (customSections ?? []) as ProfileFieldSection[];
+  const customFieldsList = (customFields ?? []) as ProfileField[];
+  const customValuesList = (customValues ?? []) as ProfileFieldValue[];
+  const multiRowValuesList = (multiRowValues ?? []) as ProfileFieldValueRow[];
+  // hr_support can also "edit" — their writes get queued for admin approval.
+  const canEditCustomFields = isAdmin || isOwnProfile || isRecruiter;
+  const customFieldsSubmitMode: "direct" | "queue" =
+    isRecruiter && !isOwnProfile ? "queue" : "direct";
+  const employeeLabel =
+    user?.preferred_name ||
+    user?.first_name ||
+    user?.full_name ||
+    user?.email ||
+    userId;
+
+  // Index built-in fields by their key so the Details card can ask each
+  // row "what visibility did HR set for this?" and skip rows the viewer
+  // isn't allowed to see.
+  const builtInByKey = new Map<string, ProfileField>();
+  for (const f of customFieldsList) {
+    if (f.built_in_key) builtInByKey.set(f.built_in_key, f);
+  }
+  const isDirectManager = user?.manager_id === currentUser.id;
+  const canSeeBuiltIn = (key: string): boolean => {
+    const def = builtInByKey.get(key);
+    if (!def) return true; // not configured → fall back to current behaviour
+    return canSeeFieldValue(def.visibility, {
+      isOwnProfile,
+      isAdmin,
+      isDirectManager,
+      isRecruiter,
+      visibleToRecruiter: def.visible_to_recruiter,
+    });
+  };
 
   const tz =
     user.timezone === "Asia/Manila"
@@ -217,22 +262,28 @@ export default async function TeamMemberPage({
             Details
           </h2>
           <div className="space-y-3">
-            <div className="flex items-center gap-3 text-sm">
-              <Mail size={16} className="shrink-0 text-gray-400" />
-              <span className="text-gray-900">{user.email}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <Clock size={16} className="shrink-0 text-gray-400" />
-              <span className="text-gray-900">{tz}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <Globe size={16} className="shrink-0 text-gray-400" />
-              <span className="text-gray-900">
-                {HOLIDAY_COUNTRY_LABELS[user.holiday_country as HolidayCountry] ??
-                  user.holiday_country}
-              </span>
-            </div>
-            {user.birthday && (
+            {canSeeBuiltIn("email") && (
+              <div className="flex items-center gap-3 text-sm">
+                <Mail size={16} className="shrink-0 text-gray-400" />
+                <span className="text-gray-900">{user.email}</span>
+              </div>
+            )}
+            {canSeeBuiltIn("timezone") && (
+              <div className="flex items-center gap-3 text-sm">
+                <Clock size={16} className="shrink-0 text-gray-400" />
+                <span className="text-gray-900">{tz}</span>
+              </div>
+            )}
+            {canSeeBuiltIn("holiday_country") && (
+              <div className="flex items-center gap-3 text-sm">
+                <Globe size={16} className="shrink-0 text-gray-400" />
+                <span className="text-gray-900">
+                  {HOLIDAY_COUNTRY_LABELS[user.holiday_country as HolidayCountry] ??
+                    user.holiday_country}
+                </span>
+              </div>
+            )}
+            {user.birthday && canSeeBuiltIn("birthday") && (
               <div className="flex items-center gap-3 text-sm">
                 <Cake size={16} className="shrink-0 text-gray-400" />
                 <span className="text-gray-900">
@@ -240,7 +291,7 @@ export default async function TeamMemberPage({
                 </span>
               </div>
             )}
-            {user.hire_date && (
+            {user.hire_date && canSeeBuiltIn("hire_date") && (
               <div className="flex items-center gap-3 text-sm">
                 <BriefcaseBusiness size={16} className="shrink-0 text-gray-400" />
                 <span className="text-gray-900">
@@ -253,7 +304,7 @@ export default async function TeamMemberPage({
                 </span>
               </div>
             )}
-            {user.end_date && canSeeEndDate && (
+            {user.end_date && canSeeEndDate && canSeeBuiltIn("end_date") && (
               <div className="flex items-center gap-3 text-sm">
                 <CalendarX size={16} className="shrink-0 text-gray-400" />
                 <span className="text-gray-900">
@@ -261,7 +312,7 @@ export default async function TeamMemberPage({
                 </span>
               </div>
             )}
-            {managerName && (
+            {managerName && canSeeBuiltIn("manager_id") && (
               <div className="flex items-center gap-3 text-sm">
                 <Users size={16} className="shrink-0 text-gray-400" />
                 <span className="text-gray-600">Reports to </span>
@@ -496,20 +547,48 @@ export default async function TeamMemberPage({
         </div>
       )}
 
-      {/* References */}
-      {canSeeReferencesHere && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-            <ContactRound size={14} />
-            References
-          </h2>
-          <ReferencesEditor
+      {/* Custom profile fields. Scalar built-in fields are rendered via the
+          Details card above; here we render:
+            - Any custom (non-built-in) fields, grouped by their section
+            - Multi-row built-in fields (e.g. References) — these don't fit
+              the Details card layout
+      */}
+      {customSectionsList.map((s) => {
+        // A field shows up here if it's custom OR if it's a multi-row built-in.
+        const fieldsForSection = customFieldsList.filter(
+          (f) =>
+            f.section_id === s.id &&
+            (!f.built_in_key || f.field_type === "multi_row")
+        );
+        if (fieldsForSection.length === 0) return null;
+        const scalarValues = customValuesList.filter((v) =>
+          fieldsForSection.some((f) => f.id === v.field_id)
+        );
+        const rowValues = multiRowValuesList.filter((v) =>
+          fieldsForSection.some((f) => f.id === v.field_id)
+        );
+        // For non-editors, hide a section that has no values they're allowed to see.
+        if (
+          !canEditCustomFields &&
+          scalarValues.length === 0 &&
+          rowValues.length === 0
+        )
+          return null;
+        return (
+          <CustomFieldsSection
+            key={s.id}
+            section={s}
+            fields={fieldsForSection}
+            values={scalarValues}
+            multiRowValues={rowValues}
             employeeId={userId}
-            initialReferences={references}
-            canEdit={canEditReferences}
+            employeeLabel={employeeLabel}
+            canEdit={canEditCustomFields}
+            submitMode={customFieldsSubmitMode}
           />
-        </div>
-      )}
+        );
+      })}
+
     </div>
   );
 }

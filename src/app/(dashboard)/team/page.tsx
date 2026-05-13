@@ -8,12 +8,13 @@ export default async function TeamPage() {
   // Use admin client to bypass RLS — team directory should show everyone
   const supabase = createAdminClient();
 
+  // Fetch everyone — the directory shows active, inactive, and terminated
+  // employees, with a status filter on the client.
   const { data: users } = await supabase
     .from("users")
     .select(
-      "id, full_name, preferred_name, first_name, last_name, email, role, department, job_title, location, manager_id"
+      "id, full_name, preferred_name, first_name, last_name, email, role, department, job_title, location, holiday_country, is_active, end_date, manager_id"
     )
-    .eq("is_active", true)
     .order("full_name");
 
   // Fetch manager names for display

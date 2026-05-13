@@ -301,8 +301,8 @@ export function UserManagement({
 
   const roleOptions: UserRole[] =
     currentUserRole === "super_admin"
-      ? ["employee", "manager", "hr_recruiter", "hr_admin", "super_admin"]
-      : ["employee", "manager", "hr_recruiter"];
+      ? ["employee", "manager", "hr_support", "hr_admin", "super_admin"]
+      : ["employee", "manager", "hr_support"];
 
   return (
     <div className="space-y-4">

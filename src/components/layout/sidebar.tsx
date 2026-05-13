@@ -25,6 +25,9 @@ import {
   HelpCircle,
   Gift,
   FileText,
+  ListTree,
+  Upload,
+  Inbox,
 } from "lucide-react";
 import { useState } from "react";
 import type { UserRole } from "@/types/database";
@@ -87,6 +90,8 @@ const navSections: NavSection[] = [
       { label: "Leave Plans", href: "/admin/leave-plans", icon: <Palmtree size={20} />, minRole: "hr_admin" },
       { label: "Anniversary Benefits", href: "/admin/settings/anniversary-benefits", icon: <Gift size={20} />, minRole: "super_admin" },
       { label: "Document Requests", href: "/admin/document-requests", icon: <FileText size={20} />, minRole: "hr_admin" },
+      { label: "Bulk Import", href: "/admin/bulk-import", icon: <Upload size={20} />, minRole: "hr_admin", roles: ["hr_support", "hr_admin", "super_admin"] },
+      { label: "Pending Changes", href: "/admin/pending-changes", icon: <Inbox size={20} />, minRole: "hr_admin" },
       { label: "Users", href: "/admin/users", icon: <Users size={20} />, minRole: "hr_admin" },
       { label: "Help & Guide", href: "/admin/help", icon: <HelpCircle size={20} />, minRole: "hr_admin" },
     ],
@@ -96,6 +101,7 @@ const navSections: NavSection[] = [
 const settingsSubItems: NavItem[] = [
   { label: "General", href: "/admin/settings", icon: <SlidersHorizontal size={18} />, minRole: "super_admin" },
   { label: "Emails", href: "/admin/settings/emails", icon: <Mail size={18} />, minRole: "super_admin" },
+  { label: "Field Management", href: "/admin/settings/fields", icon: <ListTree size={18} />, minRole: "super_admin" },
   { label: "Feature Visibility", href: "/admin/settings/features", icon: <Eye size={18} />, minRole: "super_admin" },
 ];
 
@@ -114,7 +120,6 @@ export function Sidebar({
   const navContent = (
     <nav className="flex flex-col gap-1 p-4">
       {navSections.map((section) => {
-        if (!hasRole(userRole, section.minRole)) return null;
         const visibleItems = section.items.filter((item) =>
           item.roles ? item.roles.includes(userRole) : hasRole(userRole, item.minRole)
         );

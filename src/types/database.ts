@@ -3,7 +3,7 @@ export type UserRole =
   | "manager"
   | "hr_admin"
   | "super_admin"
-  | "hr_recruiter";
+  | "hr_support";
 
 export interface EmployeeReference {
   id: string;
@@ -157,6 +157,91 @@ export interface DocumentRequestWithEmployee extends DocumentRequest {
     email: string;
   } | null;
 }
+
+export type ProfileFieldType =
+  | "text"
+  | "textarea"
+  | "date"
+  | "number"
+  | "url"
+  | "multi_row";
+export type ProfileFieldVisibility = "everyone" | "manager_admin" | "admin_only";
+
+export type ProfileFieldSubfieldType =
+  | "text"
+  | "textarea"
+  | "date"
+  | "number"
+  | "url";
+
+export interface ProfileFieldSubfield {
+  key: string;
+  label: string;
+  type: ProfileFieldSubfieldType;
+}
+
+export interface ProfileFieldSection {
+  id: string;
+  name: string;
+  sort_order: number;
+  /** Non-null for system-seeded sections like "Identity", "Employment". */
+  built_in_key: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfileField {
+  id: string;
+  section_id: string;
+  label: string;
+  field_type: ProfileFieldType;
+  visibility: ProfileFieldVisibility;
+  /** If true, hr_support can see values of this field too. */
+  visible_to_recruiter: boolean;
+  sort_order: number;
+  /** Non-null for fields that map to a column on the users table. */
+  built_in_key: string | null;
+  /** Sub-field schema for multi_row fields. Empty array for scalar types. */
+  subfields: ProfileFieldSubfield[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfileFieldValue {
+  id: string;
+  field_id: string;
+  employee_id: string;
+  value: string | null;
+  updated_by: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface ProfileFieldValueRow {
+  id: string;
+  field_id: string;
+  employee_id: string;
+  row_index: number;
+  data: Record<string, string>;
+  updated_by: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
+export const PROFILE_FIELD_VISIBILITY_LABELS: Record<ProfileFieldVisibility, string> = {
+  everyone: "Everyone",
+  manager_admin: "Self + Direct Manager + HR/Admin",
+  admin_only: "Self + HR/Admin only",
+};
+
+export const PROFILE_FIELD_TYPE_LABELS: Record<ProfileFieldType, string> = {
+  text: "Short text",
+  textarea: "Long text",
+  date: "Date",
+  number: "Number",
+  url: "URL",
+  multi_row: "Multi-row",
+};
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentRequestType, string> = {
   certificate_of_employment: "Certificate of Employment",
@@ -417,4 +502,43 @@ export interface KpiAssignmentWithDetails extends KpiAssignment {
 
 export interface KpiUpdateWithUser extends KpiUpdate {
   updated_by_user?: { id: string; full_name: string; email: string };
+}
+
+export type PendingChangeType =
+  | "bulk_import"
+  | "field_value_upsert"
+  | "field_value_delete"
+  | "multi_row_insert"
+  | "multi_row_update"
+  | "multi_row_delete";
+
+export type PendingChangeStatus = "pending" | "approved" | "rejected";
+
+export interface PendingChange {
+  id: string;
+  requested_by: string;
+  requested_at: string;
+  change_type: PendingChangeType;
+  target_employee_id: string | null;
+  description: string;
+  payload: Record<string, unknown>;
+  status: PendingChangeStatus;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_notes: string | null;
+  applied_at: string | null;
+}
+
+interface MiniUser {
+  full_name: string;
+  email: string;
+  preferred_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+}
+
+export interface PendingChangeWithRequester extends PendingChange {
+  requester?: MiniUser;
+  target?: MiniUser | null;
+  decider?: { full_name: string; email: string } | null;
 }

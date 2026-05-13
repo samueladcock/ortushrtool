@@ -1,0 +1,164 @@
+import {
+  HOLIDAY_COUNTRY_LABELS,
+  type HolidayCountry,
+  type ProfileFieldVisibility,
+  type User,
+} from "@/types/database";
+
+const ROLE_LABELS: Record<string, string> = {
+  employee: "Employee",
+  manager: "Manager",
+  hr_support: "HR Support",
+  hr_admin: "HR Admin",
+  super_admin: "Super Admin",
+};
+
+/**
+ * Resolves a built-in profile field key (e.g. "birthday", "manager_id") to
+ * a display value pulled from the user record + optional manager context.
+ */
+export function builtInFieldValue(
+  key: string,
+  user: User,
+  managerName?: string | null
+): string | null {
+  switch (key) {
+    case "full_name":
+      return user.full_name || null;
+    case "preferred_name":
+      return user.preferred_name;
+    case "first_name":
+      return user.first_name;
+    case "middle_name":
+      return user.middle_name;
+    case "last_name":
+      return user.last_name;
+    case "email":
+      return user.email;
+    case "role":
+      return ROLE_LABELS[user.role] ?? user.role;
+    case "department":
+      return user.department;
+    case "job_title":
+      return user.job_title;
+    case "manager_id":
+      return managerName ?? null;
+    case "hire_date":
+      return user.hire_date;
+    case "regularization_date":
+      return user.regularization_date;
+    case "end_date":
+      return user.end_date;
+    case "is_active":
+      return user.is_active ? "Active" : "Inactive";
+    case "overtime_eligible":
+      return user.overtime_eligible ? "Yes" : "No";
+    case "birthday":
+      return user.birthday;
+    case "holiday_country":
+      return (
+        HOLIDAY_COUNTRY_LABELS[user.holiday_country as HolidayCountry] ??
+        user.holiday_country
+      );
+    case "timezone":
+      return user.timezone;
+    case "location":
+      return user.location;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Map of built-in field keys → user-table column + how to parse the raw CSV
+ * value. Used by the bulk importer. `null` parsed values mean "skip / invalid".
+ */
+type ParsedValue = { ok: true; value: unknown } | { ok: false; error: string };
+type BuiltInImportSpec = {
+  column: string;
+  parse: (raw: string) => ParsedValue;
+};
+
+const ROLE_VALUES = new Set([
+  "employee",
+  "manager",
+  "hr_support",
+  "hr_admin",
+  "super_admin",
+]);
+const COUNTRY_VALUES = new Set(["PH", "XK", "IT", "AE"]);
+
+const text = (raw: string): ParsedValue => ({
+  ok: true,
+  value: raw.trim().length === 0 ? null : raw.trim(),
+});
+
+const date = (raw: string): ParsedValue => {
+  const v = raw.trim();
+  if (v.length === 0) return { ok: true, value: null };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v))
+    return { ok: false, error: `Expected YYYY-MM-DD, got "${raw}"` };
+  return { ok: true, value: v };
+};
+
+const boolYesNo = (raw: string): ParsedValue => {
+  const v = raw.trim().toLowerCase();
+  if (v === "" ) return { ok: true, value: null };
+  if (["yes", "true", "1"].includes(v)) return { ok: true, value: true };
+  if (["no", "false", "0"].includes(v)) return { ok: true, value: false };
+  return { ok: false, error: `Expected Yes/No, got "${raw}"` };
+};
+
+const enumIn = (allowed: Set<string>) =>
+  (raw: string): ParsedValue => {
+    const v = raw.trim();
+    if (v.length === 0) return { ok: true, value: null };
+    if (!allowed.has(v))
+      return {
+        ok: false,
+        error: `"${raw}" not in [${Array.from(allowed).join(", ")}]`,
+      };
+    return { ok: true, value: v };
+  };
+
+export const BUILT_IN_IMPORT_SPECS: Record<string, BuiltInImportSpec> = {
+  preferred_name: { column: "preferred_name", parse: text },
+  first_name: { column: "first_name", parse: text },
+  middle_name: { column: "middle_name", parse: text },
+  last_name: { column: "last_name", parse: text },
+  department: { column: "department", parse: text },
+  job_title: { column: "job_title", parse: text },
+  location: { column: "location", parse: text },
+  timezone: { column: "timezone", parse: text },
+  birthday: { column: "birthday", parse: date },
+  hire_date: { column: "hire_date", parse: date },
+  regularization_date: { column: "regularization_date", parse: date },
+  end_date: { column: "end_date", parse: date },
+  role: { column: "role", parse: enumIn(ROLE_VALUES) },
+  holiday_country: { column: "holiday_country", parse: enumIn(COUNTRY_VALUES) },
+  is_active: { column: "is_active", parse: boolYesNo },
+  overtime_eligible: { column: "overtime_eligible", parse: boolYesNo },
+};
+
+/**
+ * Checks whether a viewer is permitted to see a built-in field value given
+ * the field's visibility setting and the viewer's relationship to the
+ * subject. Mirrors the RLS rules on profile_field_values for custom fields.
+ */
+export function canSeeFieldValue(
+  visibility: ProfileFieldVisibility,
+  options: {
+    isOwnProfile: boolean;
+    isAdmin: boolean;
+    isDirectManager: boolean;
+    isRecruiter?: boolean;
+    visibleToRecruiter?: boolean;
+  }
+): boolean {
+  if (options.isOwnProfile) return true;
+  if (options.isAdmin) return true;
+  if (options.isRecruiter && options.visibleToRecruiter) return true;
+  if (visibility === "everyone") return true;
+  if (visibility === "manager_admin") return options.isDirectManager;
+  return false; // admin_only
+}
