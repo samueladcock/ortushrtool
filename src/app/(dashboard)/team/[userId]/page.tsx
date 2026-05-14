@@ -73,9 +73,57 @@ export default async function TeamMemberProfileTab({
       .order("row_index"),
   ]);
   const customSectionsList = (customSections ?? []) as ProfileFieldSection[];
-  const customFieldsList = (customFields ?? []) as ProfileField[];
-  const customValuesList = (customValues ?? []) as ProfileFieldValue[];
-  const multiRowValuesList = (multiRowValues ?? []) as ProfileFieldValueRow[];
+  const customFieldsRaw = (customFields ?? []) as ProfileField[];
+  const customValuesRaw = (customValues ?? []) as ProfileFieldValue[];
+  const multiRowValuesRaw = (multiRowValues ?? []) as ProfileFieldValueRow[];
+
+  // The admin client bypasses RLS, so we must replicate the visibility
+  // rules here before passing field defs and values to the client.
+  const isDirectManager = user?.manager_id === currentUser.id;
+  const viewerCtx = {
+    isOwnProfile,
+    isAdmin,
+    isDirectManager,
+    isRecruiter,
+  };
+  const customFieldsList: ProfileField[] = customFieldsRaw
+    .map((f) => {
+      const effectiveSubfields = f.subfields.filter((sf) =>
+        canSeeFieldValue(sf.visibility ?? f.visibility, {
+          ...viewerCtx,
+          visibleToRecruiter: f.visible_to_recruiter,
+        })
+      );
+      return { ...f, subfields: effectiveSubfields };
+    })
+    .filter((f) => {
+      // Hide the whole field if the viewer can't see the parent value
+      // AND (for multi-row) every subfield is also hidden.
+      const parentVisible = canSeeFieldValue(f.visibility, {
+        ...viewerCtx,
+        visibleToRecruiter: f.visible_to_recruiter,
+      });
+      if (parentVisible) return true;
+      // Parent hidden but some subfield is overridden to something the
+      // viewer can see — keep the field for those subfields.
+      return f.field_type === "multi_row" && f.subfields.length > 0;
+    });
+  const visibleFieldIds = new Set(customFieldsList.map((f) => f.id));
+  const customValuesList = customValuesRaw.filter((v) =>
+    visibleFieldIds.has(v.field_id)
+  );
+  const multiRowValuesList = multiRowValuesRaw
+    .filter((v) => visibleFieldIds.has(v.field_id))
+    .map((v) => {
+      const field = customFieldsList.find((f) => f.id === v.field_id);
+      if (!field) return v;
+      const allowedKeys = new Set(field.subfields.map((sf) => sf.key));
+      const redacted: Record<string, string> = {};
+      for (const [k, val] of Object.entries(v.data)) {
+        if (allowedKeys.has(k)) redacted[k] = val;
+      }
+      return { ...v, data: redacted };
+    });
 
   const canEditCustomFields = isAdmin || isOwnProfile || isRecruiter;
   const customFieldsSubmitMode: "direct" | "queue" = isAdmin
@@ -87,15 +135,11 @@ export default async function TeamMemberProfileTab({
   for (const f of customFieldsList) {
     if (f.built_in_key) builtInByKey.set(f.built_in_key, f);
   }
-  const isDirectManager = user?.manager_id === currentUser.id;
   const canSeeBuiltIn = (key: string): boolean => {
     const def = builtInByKey.get(key);
     if (!def) return true;
     return canSeeFieldValue(def.visibility, {
-      isOwnProfile,
-      isAdmin,
-      isDirectManager,
-      isRecruiter,
+      ...viewerCtx,
       visibleToRecruiter: def.visible_to_recruiter,
     });
   };

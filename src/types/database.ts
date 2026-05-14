@@ -168,7 +168,11 @@ export type ProfileFieldType =
   | "number"
   | "url"
   | "multi_row";
-export type ProfileFieldVisibility = "everyone" | "manager_admin" | "admin_only";
+export type ProfileFieldVisibility =
+  | "everyone"
+  | "manager_admin"
+  | "admin_only"
+  | "hr_only";
 
 export type ProfileFieldSubfieldType =
   | "text"
@@ -181,6 +185,13 @@ export interface ProfileFieldSubfield {
   key: string;
   label: string;
   type: ProfileFieldSubfieldType;
+  /**
+   * Per-subfield visibility override. Undefined = inherit the parent
+   * field's visibility. Use this to make individual columns within a
+   * multi-row field more restrictive (e.g. HR-only recruiter notes
+   * inside an otherwise manager-visible References block).
+   */
+  visibility?: ProfileFieldVisibility;
 }
 
 export interface ProfileFieldSection {
@@ -235,6 +246,7 @@ export const PROFILE_FIELD_VISIBILITY_LABELS: Record<ProfileFieldVisibility, str
   everyone: "Everyone",
   manager_admin: "Self + Direct Manager + HR/Admin",
   admin_only: "Self + HR/Admin only",
+  hr_only: "HR/Admin only (hidden from employee)",
 };
 
 export const PROFILE_FIELD_TYPE_LABELS: Record<ProfileFieldType, string> = {

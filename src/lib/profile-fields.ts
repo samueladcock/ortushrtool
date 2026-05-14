@@ -155,10 +155,12 @@ export function canSeeFieldValue(
     visibleToRecruiter?: boolean;
   }
 ): boolean {
-  if (options.isOwnProfile) return true;
   if (options.isAdmin) return true;
   if (options.isRecruiter && options.visibleToRecruiter) return true;
+  // hr_only excludes the employee themselves; every other level lets
+  // the owner see their own field.
+  if (options.isOwnProfile) return visibility !== "hr_only";
   if (visibility === "everyone") return true;
   if (visibility === "manager_admin") return options.isDirectManager;
-  return false; // admin_only
+  return false; // admin_only or hr_only — only admins (handled above)
 }

@@ -31,7 +31,12 @@ const SUBFIELD_TYPES: ProfileFieldSubfieldType[] = [
   "number",
   "url",
 ];
-const VISIBILITIES: ProfileFieldVisibility[] = ["everyone", "manager_admin", "admin_only"];
+const VISIBILITIES: ProfileFieldVisibility[] = [
+  "everyone",
+  "manager_admin",
+  "admin_only",
+  "hr_only",
+];
 
 function slugify(s: string): string {
   return s
@@ -1030,6 +1035,26 @@ function SubfieldsEditor({
               {SUBFIELD_TYPES.map((t) => (
                 <option key={t} value={t}>
                   {PROFILE_FIELD_TYPE_LABELS[t]}
+                </option>
+              ))}
+            </select>
+            <select
+              value={sf.visibility ?? ""}
+              onChange={(e) =>
+                updateSub(i, {
+                  visibility:
+                    e.target.value === ""
+                      ? undefined
+                      : (e.target.value as ProfileFieldVisibility),
+                })
+              }
+              title="Visibility — leave blank to inherit the parent field"
+              className={`${inputClass} text-xs`}
+            >
+              <option value="">Inherit visibility</option>
+              {VISIBILITIES.map((v) => (
+                <option key={v} value={v}>
+                  {PROFILE_FIELD_VISIBILITY_LABELS[v]}
                 </option>
               ))}
             </select>
