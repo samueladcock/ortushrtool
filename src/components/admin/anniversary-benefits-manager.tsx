@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Save, Trash2, X, Pencil } from "lucide-react";
+import { Plus, Save, Trash2, X, Pencil, Copy } from "lucide-react";
 import {
   HOLIDAY_COUNTRY_LABELS,
   type HolidayCountry,
@@ -38,6 +38,8 @@ export function AnniversaryBenefitsManager({
   }>({ country: COUNTRY_VALUES[0], years: 1, body: DEFAULT_BODY });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [duplicatingFrom, setDuplicatingFrom] = useState<Benefit | null>(null);
+  const [duplicateYearsInput, setDuplicateYearsInput] = useState("");
 
   const grouped = useMemo(() => {
     const map = new Map<string, Benefit[]>();
@@ -133,6 +135,104 @@ export function AnniversaryBenefitsManager({
     router.refresh();
   };
 
+  const startDuplicate = (b: Benefit) => {
+    setDuplicatingFrom(b);
+    setDuplicateYearsInput("");
+    setMessage("");
+  };
+
+  const cancelDuplicate = () => {
+    setDuplicatingFrom(null);
+    setDuplicateYearsInput("");
+  };
+
+  /**
+   * Parse a string like "6-9, 11, 13-14" into [6,7,8,9,11,13,14].
+   * Returns null on parse error.
+   */
+  function parseYearsInput(input: string): number[] | null {
+    const out: number[] = [];
+    const parts = input
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parts.length === 0) return null;
+    for (const part of parts) {
+      const rangeMatch = part.match(/^(\d+)\s*-\s*(\d+)$/);
+      if (rangeMatch) {
+        const a = parseInt(rangeMatch[1]);
+        const b = parseInt(rangeMatch[2]);
+        if (a < 1 || b < 1 || a > b) return null;
+        for (let y = a; y <= b; y++) out.push(y);
+      } else if (/^\d+$/.test(part)) {
+        const y = parseInt(part);
+        if (y < 1) return null;
+        out.push(y);
+      } else {
+        return null;
+      }
+    }
+    return Array.from(new Set(out)).sort((a, b) => a - b);
+  }
+
+  const applyDuplicate = async () => {
+    if (!duplicatingFrom) return;
+    const years = parseYearsInput(duplicateYearsInput);
+    if (!years) {
+      setMessage(
+        "Enter years as numbers or ranges, e.g. \"6-9\" or \"6, 8, 10-12\"."
+      );
+      return;
+    }
+    const existing = new Set(
+      benefits
+        .filter((b) => b.country === duplicatingFrom.country)
+        .map((b) => b.years)
+    );
+    const toCreate = years.filter((y) => !existing.has(y));
+    const skipped = years.filter((y) => existing.has(y));
+
+    if (toCreate.length === 0) {
+      setMessage(
+        `All those years already have a benefit for ${
+          HOLIDAY_COUNTRY_LABELS[duplicatingFrom.country as HolidayCountry] ??
+          duplicatingFrom.country
+        } — nothing to duplicate.`
+      );
+      return;
+    }
+    setSaving(true);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const rows = toCreate.map((y) => ({
+      country: duplicatingFrom.country,
+      years: y,
+      body: duplicatingFrom.body,
+      updated_by: user?.id,
+      updated_at: new Date().toISOString(),
+    }));
+    const { data, error } = await supabase
+      .from("anniversary_benefits")
+      .insert(rows)
+      .select("id, country, years, body, updated_at");
+    setSaving(false);
+    if (error) {
+      setMessage(`Duplicate failed: ${error.message}`);
+      return;
+    }
+    if (data) setBenefits((prev) => [...prev, ...data]);
+    setDuplicatingFrom(null);
+    setDuplicateYearsInput("");
+    setMessage(
+      skipped.length === 0
+        ? `Duplicated to ${toCreate.length} year${toCreate.length === 1 ? "" : "s"}.`
+        : `Duplicated to ${toCreate.length} year${toCreate.length === 1 ? "" : "s"}; skipped ${skipped.join(", ")} (already had a benefit).`
+    );
+    router.refresh();
+  };
+
   const remove = async (b: Benefit) => {
     if (
       !confirm(
@@ -208,33 +308,79 @@ export function AnniversaryBenefitsManager({
                     />
                   </div>
                 ) : (
-                  <div className="flex items-start gap-4 p-4">
-                    <div className="w-16 shrink-0 text-sm font-semibold text-gray-700">
-                      Year {b.years}
+                  <>
+                    <div className="flex items-start gap-4 p-4">
+                      <div className="w-16 shrink-0 text-sm font-semibold text-gray-700">
+                        Year {b.years}
+                      </div>
+                      <div
+                        className="prose prose-sm min-w-0 flex-1 text-sm text-gray-700 [&_li]:my-0.5 [&_ul]:list-disc [&_ul]:pl-5"
+                        dangerouslySetInnerHTML={{ __html: b.body }}
+                      />
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startDuplicate(b)}
+                          className="rounded-lg border border-gray-300 p-2 text-gray-600 hover:bg-gray-100"
+                          title="Duplicate to other years"
+                        >
+                          <Copy size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(b)}
+                          className="rounded-lg border border-gray-300 p-2 text-gray-600 hover:bg-gray-100"
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => remove(b)}
+                          className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <div
-                      className="prose prose-sm min-w-0 flex-1 text-sm text-gray-700 [&_li]:my-0.5 [&_ul]:list-disc [&_ul]:pl-5"
-                      dangerouslySetInnerHTML={{ __html: b.body }}
-                    />
-                    <div className="flex shrink-0 items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(b)}
-                        className="rounded-lg border border-gray-300 p-2 text-gray-600 hover:bg-gray-100"
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => remove(b)}
-                        className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50"
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
+                    {duplicatingFrom?.id === b.id && (
+                      <div className="border-t border-blue-200 bg-blue-50/40 p-4">
+                        <p className="mb-2 text-xs text-gray-600">
+                          Copy this benefit body to additional year(s).
+                          Comma-separated and ranges allowed (e.g.{" "}
+                          <code className="rounded bg-white px-1">6-9</code>,{" "}
+                          <code className="rounded bg-white px-1">6, 8, 10-12</code>).
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            type="text"
+                            autoFocus
+                            value={duplicateYearsInput}
+                            onChange={(e) => setDuplicateYearsInput(e.target.value)}
+                            placeholder="e.g. 6-9"
+                            className="flex-1 min-w-[160px] rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={applyDuplicate}
+                            disabled={saving || !duplicateYearsInput.trim()}
+                            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            <Copy size={14} />
+                            {saving ? "Duplicating..." : "Duplicate"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelDuplicate}
+                            className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                          >
+                            <X size={14} /> Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ))}
