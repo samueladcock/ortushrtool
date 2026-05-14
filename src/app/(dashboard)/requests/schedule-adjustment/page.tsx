@@ -414,7 +414,7 @@ export default function ScheduleAdjustmentPage() {
                 onChange={() => setAdjustmentType("location")}
                 className="h-4 w-4 text-blue-600"
               />
-              <span className="text-sm text-gray-700">Location</span>
+              <span className="text-sm text-gray-700">Working Location</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input

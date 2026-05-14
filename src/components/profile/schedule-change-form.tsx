@@ -103,7 +103,7 @@ export function ScheduleChangeForm({ employeeId }: { employeeId: string }) {
             className={inputClass}
           >
             <option value="time">Time</option>
-            <option value="location">Location</option>
+            <option value="location">Working Location</option>
             <option value="both">Both</option>
           </select>
         </Field>

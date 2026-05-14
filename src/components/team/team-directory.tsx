@@ -373,7 +373,7 @@ function ListView({ users }: { users: TeamUser[] }) {
               <th className="px-6 py-3 font-medium text-gray-600">Position</th>
               <th className="px-6 py-3 font-medium text-gray-600">Department</th>
               <th className="px-6 py-3 font-medium text-gray-600">Country</th>
-              <th className="px-6 py-3 font-medium text-gray-600">Location</th>
+              <th className="px-6 py-3 font-medium text-gray-600">Working Location</th>
               <th className="px-6 py-3 font-medium text-gray-600">Reports To</th>
               <th className="px-6 py-3 font-medium text-gray-600">Status</th>
             </tr>

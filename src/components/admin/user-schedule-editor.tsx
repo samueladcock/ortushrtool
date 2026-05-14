@@ -121,7 +121,7 @@ export function UserScheduleEditor({
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-left">
               <th className="px-4 py-3 font-medium text-gray-600 w-32">Day</th>
-              <th className="px-4 py-3 font-medium text-gray-600 w-28">Location</th>
+              <th className="px-4 py-3 font-medium text-gray-600 w-28">Working Location</th>
               <th className="px-4 py-3 font-medium text-gray-600 w-32">Start</th>
               <th className="px-4 py-3 font-medium text-gray-600 w-32">End</th>
               <th className="px-4 py-3 font-medium text-gray-600 w-24">Rest Day</th>

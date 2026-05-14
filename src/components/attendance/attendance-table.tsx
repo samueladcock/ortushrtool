@@ -225,7 +225,7 @@ export function AttendanceTable({ initialLogs, userId, schedules }: Props) {
                 <tr className="border-b border-gray-200 text-left">
                   <th className="px-6 py-3 font-medium text-gray-600">Date</th>
                   <th className="px-6 py-3 font-medium text-gray-600">Scheduled</th>
-                  <th className="px-6 py-3 font-medium text-gray-600">Location</th>
+                  <th className="px-6 py-3 font-medium text-gray-600">Working Location</th>
                   <th className="px-6 py-3 font-medium text-gray-600">Clock In</th>
                   <th className="px-6 py-3 font-medium text-gray-600">Clock Out</th>
                   <th className="px-6 py-3 font-medium text-gray-600">Status</th>

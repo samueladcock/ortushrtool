@@ -165,7 +165,7 @@ export function OneOffAdjustmentForm({
             className={inputClass}
           >
             <option value="time">Time</option>
-            <option value="location">Location</option>
+            <option value="location">Working Location</option>
             <option value="both">Both</option>
           </select>
         </Field>
@@ -190,7 +190,7 @@ export function OneOffAdjustmentForm({
           </>
         )}
         {showLoc && (
-          <Field label="Location">
+          <Field label="Working Location">
             <select
               value={location}
               onChange={(e) => setLocation(e.target.value as WorkLocation)}

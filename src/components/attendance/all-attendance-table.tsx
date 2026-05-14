@@ -569,7 +569,7 @@ export function AllAttendanceTable({
       "Email",
       ...(isSingleDate ? [] : ["Date"]),
       "Country",
-      "Location",
+      "Working Location",
       "Schedule",
       "Timezone",
       "Clock In",
@@ -796,7 +796,7 @@ export function AllAttendanceTable({
                   <HeaderFilter label="Country" options={countryOptions} value={countryFilter} onChange={setCountryFilter} />
                 </th>
                 <th className="px-4 py-3">
-                  <HeaderFilter label="Location" options={locationOptions} value={locationFilter} onChange={setLocationFilter} />
+                  <HeaderFilter label="Working Location" options={locationOptions} value={locationFilter} onChange={setLocationFilter} />
                 </th>
                 <th className="px-4 py-3 font-medium text-gray-600">Schedule</th>
                 <th className="px-4 py-3">
