@@ -37,9 +37,14 @@ export function UserManagement({
 
   const filteredUsers = users.filter((u) => {
     const q = search.toLowerCase();
+    if (!q) return true;
     return (
       displayName(u).toLowerCase().includes(q) ||
       (u.full_name?.toLowerCase().includes(q) ?? false) ||
+      (u.preferred_name?.toLowerCase().includes(q) ?? false) ||
+      (u.first_name?.toLowerCase().includes(q) ?? false) ||
+      (u.middle_name?.toLowerCase().includes(q) ?? false) ||
+      (u.last_name?.toLowerCase().includes(q) ?? false) ||
       u.email.toLowerCase().includes(q) ||
       (u.department ?? "").toLowerCase().includes(q) ||
       (u.job_title ?? "").toLowerCase().includes(q)
