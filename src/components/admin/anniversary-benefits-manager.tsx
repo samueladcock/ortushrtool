@@ -40,6 +40,7 @@ export function AnniversaryBenefitsManager({
   const [message, setMessage] = useState("");
   const [duplicatingFrom, setDuplicatingFrom] = useState<Benefit | null>(null);
   const [duplicateYearsInput, setDuplicateYearsInput] = useState("");
+  const [duplicateCountries, setDuplicateCountries] = useState<string[]>([]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Benefit[]>();
@@ -138,12 +139,20 @@ export function AnniversaryBenefitsManager({
   const startDuplicate = (b: Benefit) => {
     setDuplicatingFrom(b);
     setDuplicateYearsInput("");
+    setDuplicateCountries([b.country]);
     setMessage("");
   };
 
   const cancelDuplicate = () => {
     setDuplicatingFrom(null);
     setDuplicateYearsInput("");
+    setDuplicateCountries([]);
+  };
+
+  const toggleDuplicateCountry = (c: string) => {
+    setDuplicateCountries((prev) =>
+      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+    );
   };
 
   /**
@@ -184,20 +193,28 @@ export function AnniversaryBenefitsManager({
       );
       return;
     }
+    if (duplicateCountries.length === 0) {
+      setMessage("Pick at least one country to duplicate to.");
+      return;
+    }
+    // Build (country, year) pairs and split into to-create vs skipped.
+    type Pair = { country: string; year: number };
+    const wanted: Pair[] = [];
+    for (const c of duplicateCountries) {
+      for (const y of years) wanted.push({ country: c, year: y });
+    }
     const existing = new Set(
-      benefits
-        .filter((b) => b.country === duplicatingFrom.country)
-        .map((b) => b.years)
+      benefits.map((b) => `${b.country}|${b.years}`)
     );
-    const toCreate = years.filter((y) => !existing.has(y));
-    const skipped = years.filter((y) => existing.has(y));
-
+    const toCreate = wanted.filter(
+      (p) => !existing.has(`${p.country}|${p.year}`)
+    );
+    const skipped = wanted.filter((p) =>
+      existing.has(`${p.country}|${p.year}`)
+    );
     if (toCreate.length === 0) {
       setMessage(
-        `All those years already have a benefit for ${
-          HOLIDAY_COUNTRY_LABELS[duplicatingFrom.country as HolidayCountry] ??
-          duplicatingFrom.country
-        } — nothing to duplicate.`
+        "All those country/year combinations already have a benefit — nothing to duplicate."
       );
       return;
     }
@@ -206,9 +223,9 @@ export function AnniversaryBenefitsManager({
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const rows = toCreate.map((y) => ({
-      country: duplicatingFrom.country,
-      years: y,
+    const rows = toCreate.map((p) => ({
+      country: p.country,
+      years: p.year,
       body: duplicatingFrom.body,
       updated_by: user?.id,
       updated_at: new Date().toISOString(),
@@ -225,10 +242,17 @@ export function AnniversaryBenefitsManager({
     if (data) setBenefits((prev) => [...prev, ...data]);
     setDuplicatingFrom(null);
     setDuplicateYearsInput("");
+    setDuplicateCountries([]);
+    const created = toCreate.length;
     setMessage(
       skipped.length === 0
-        ? `Duplicated to ${toCreate.length} year${toCreate.length === 1 ? "" : "s"}.`
-        : `Duplicated to ${toCreate.length} year${toCreate.length === 1 ? "" : "s"}; skipped ${skipped.join(", ")} (already had a benefit).`
+        ? `Created ${created} benefit${created === 1 ? "" : "s"}.`
+        : `Created ${created} benefit${created === 1 ? "" : "s"}; skipped ${skipped.length} that already existed (${skipped
+            .map(
+              (p) =>
+                `${HOLIDAY_COUNTRY_LABELS[p.country as HolidayCountry] ?? p.country} year ${p.year}`
+            )
+            .join(", ")}).`
     );
     router.refresh();
   };
@@ -345,26 +369,55 @@ export function AnniversaryBenefitsManager({
                       </div>
                     </div>
                     {duplicatingFrom?.id === b.id && (
-                      <div className="border-t border-blue-200 bg-blue-50/40 p-4">
-                        <p className="mb-2 text-xs text-gray-600">
-                          Copy this benefit body to additional year(s).
-                          Comma-separated and ranges allowed (e.g.{" "}
-                          <code className="rounded bg-white px-1">6-9</code>,{" "}
-                          <code className="rounded bg-white px-1">6, 8, 10-12</code>).
-                        </p>
-                        <div className="flex flex-wrap items-center gap-2">
+                      <div className="space-y-3 border-t border-blue-200 bg-blue-50/40 p-4">
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-gray-700">
+                            Year(s) to copy to
+                          </p>
+                          <p className="mb-2 text-[11px] text-gray-500">
+                            Comma-separated and ranges allowed (e.g.{" "}
+                            <code className="rounded bg-white px-1">6-9</code>,{" "}
+                            <code className="rounded bg-white px-1">6, 8, 10-12</code>).
+                          </p>
                           <input
                             type="text"
                             autoFocus
                             value={duplicateYearsInput}
                             onChange={(e) => setDuplicateYearsInput(e.target.value)}
                             placeholder="e.g. 6-9"
-                            className="flex-1 min-w-[160px] rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                            className="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm"
                           />
+                        </div>
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-gray-700">
+                            Country/countries to apply to
+                          </p>
+                          <div className="flex flex-wrap gap-3">
+                            {COUNTRY_VALUES.map((c) => (
+                              <label
+                                key={c}
+                                className="flex items-center gap-1.5 text-xs text-gray-700"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={duplicateCountries.includes(c)}
+                                  onChange={() => toggleDuplicateCountry(c)}
+                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                {HOLIDAY_COUNTRY_LABELS[c]}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
                           <button
                             type="button"
                             onClick={applyDuplicate}
-                            disabled={saving || !duplicateYearsInput.trim()}
+                            disabled={
+                              saving ||
+                              !duplicateYearsInput.trim() ||
+                              duplicateCountries.length === 0
+                            }
                             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                           >
                             <Copy size={14} />
