@@ -13,7 +13,7 @@ export default async function PerformancePeerRequestsPage() {
   const { data: rows } = await admin
     .from("peer_feedback_requests")
     .select(
-      "id, status, anonymous, review_id, created_at, completed_at, review:reviews!peer_feedback_requests_review_id_fkey(employee:users!reviews_employee_id_fkey(id, full_name, preferred_name, email), cycle:review_cycles!reviews_cycle_id_fkey(name, peer_due))"
+      "id, status, anonymous, review_id, created_at, completed_at, review:reviews!peer_feedback_requests_review_id_fkey(employee:users!reviews_employee_id_fkey(id, full_name, preferred_name, first_name, last_name, email), cycle:review_cycles!reviews_cycle_id_fkey(name, peer_due))"
     )
     .eq("reviewer_id", user.id)
     .order("created_at", { ascending: false });
@@ -29,6 +29,8 @@ export default async function PerformancePeerRequestsPage() {
                 id: string;
                 full_name: string;
                 preferred_name: string | null;
+                first_name: string | null;
+                last_name: string | null;
                 email: string;
               }>
             | null;

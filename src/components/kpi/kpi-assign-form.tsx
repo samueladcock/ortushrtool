@@ -7,10 +7,14 @@ import { KPI_PERIOD_TYPES } from "@/lib/constants";
 import type { KpiDefinition, KpiPeriodType } from "@/types/database";
 import { addMonths, endOfMonth, format } from "date-fns";
 import { X } from "lucide-react";
+import { displayName } from "@/lib/utils";
 
 interface TeamMember {
   id: string;
   full_name: string;
+  preferred_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   email: string;
 }
 
@@ -145,7 +149,7 @@ export function KpiAssignForm({ definitions, teamMembers, onClose }: Props) {
               <option value="">Select an employee...</option>
               {teamMembers.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.full_name || m.email}
+                  {displayName(m)}
                 </option>
               ))}
             </select>

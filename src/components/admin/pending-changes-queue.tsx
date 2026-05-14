@@ -158,7 +158,7 @@ export function PendingChangesQueue({
                       {c.decider && (
                         <div>
                           <span className="text-gray-400">Decided by:</span>{" "}
-                          {c.decider.full_name}
+                          {displayName(c.decider)}
                           {c.decided_at && (
                             <span className="text-gray-400">
                               {" "}· {formatDate(c.decided_at)}

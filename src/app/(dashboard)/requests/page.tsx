@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/helpers";
 import { createClient } from "@/lib/supabase/server";
-import { hasRole, formatDate, formatTime } from "@/lib/utils";
+import { hasRole, formatDate, formatTime, displayName } from "@/lib/utils";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
 import { AdjustmentActions } from "@/components/adjustments/adjustment-actions";
 import { LeaveActions } from "@/components/leave/leave-actions";
@@ -29,7 +29,7 @@ export default async function RequestsPage() {
   // Fetch schedule adjustments (include role for office day threshold)
   let adjQuery = supabase
     .from("schedule_adjustments")
-    .select("*, employee:users!schedule_adjustments_employee_id_fkey(full_name, email, role)")
+    .select("*, employee:users!schedule_adjustments_employee_id_fkey(full_name, preferred_name, first_name, last_name, email, role)")
     .order("created_at", { ascending: false });
 
   if (!isReviewer) {
@@ -41,7 +41,7 @@ export default async function RequestsPage() {
   // Fetch leave requests
   let leaveQuery = supabase
     .from("leave_requests")
-    .select("*, employee:users!leave_requests_employee_id_fkey(full_name, email)")
+    .select("*, employee:users!leave_requests_employee_id_fkey(full_name, preferred_name, first_name, last_name, email)")
     .order("created_at", { ascending: false });
 
   if (!isReviewer) {
@@ -53,7 +53,7 @@ export default async function RequestsPage() {
   // Fetch holiday work requests
   let hwQuery = supabase
     .from("holiday_work_requests")
-    .select("*, employee:users!holiday_work_requests_employee_id_fkey(full_name, email), holiday:holidays!holiday_work_requests_holiday_id_fkey(name)")
+    .select("*, employee:users!holiday_work_requests_employee_id_fkey(full_name, preferred_name, first_name, last_name, email), holiday:holidays!holiday_work_requests_holiday_id_fkey(name)")
     .order("created_at", { ascending: false });
 
   if (!isReviewer) {
@@ -65,7 +65,7 @@ export default async function RequestsPage() {
   // Fetch overtime requests
   let otQuery = supabase
     .from("overtime_requests")
-    .select("*, employee:users!overtime_requests_employee_id_fkey(full_name, email)")
+    .select("*, employee:users!overtime_requests_employee_id_fkey(full_name, preferred_name, first_name, last_name, email)")
     .order("created_at", { ascending: false });
 
   if (!isReviewer) {
@@ -249,7 +249,7 @@ export default async function RequestsPage() {
                         <p className="font-medium text-gray-900">
                           <UserNameLink
                             userId={adj.employee_id}
-                            name={adj.employee.full_name || adj.employee.email}
+                            name={displayName(adj.employee)}
                           />
                         </p>
                       )}
@@ -319,7 +319,7 @@ export default async function RequestsPage() {
                       <p className="font-medium text-gray-900">
                         <UserNameLink
                           userId={leave.employee_id}
-                          name={leave.employee.full_name || leave.employee.email}
+                          name={displayName(leave.employee)}
                         />
                       </p>
                     )}
@@ -385,7 +385,7 @@ export default async function RequestsPage() {
                       <p className="font-medium text-gray-900">
                         <UserNameLink
                           userId={hw.employee_id}
-                          name={hw.employee.full_name || hw.employee.email}
+                          name={displayName(hw.employee)}
                         />
                       </p>
                     )}
@@ -443,7 +443,7 @@ export default async function RequestsPage() {
                       <p className="font-medium text-gray-900">
                         <UserNameLink
                           userId={ot.employee_id}
-                          name={ot.employee.full_name || ot.employee.email}
+                          name={displayName(ot.employee)}
                         />
                       </p>
                     )}
@@ -493,7 +493,7 @@ export default async function RequestsPage() {
                       <span className="text-sm font-medium text-gray-900">
                         <UserNameLink
                           userId={adj.employee_id}
-                          name={adj.employee.full_name || adj.employee.email}
+                          name={displayName(adj.employee)}
                         />
                       </span>
                     )}
@@ -528,7 +528,7 @@ export default async function RequestsPage() {
                       <span className="text-sm font-medium text-gray-900">
                         <UserNameLink
                           userId={leave.employee_id}
-                          name={leave.employee.full_name || leave.employee.email}
+                          name={displayName(leave.employee)}
                         />
                       </span>
                     )}
@@ -569,7 +569,7 @@ export default async function RequestsPage() {
                       <span className="text-sm font-medium text-gray-900">
                         <UserNameLink
                           userId={hw.employee_id}
-                          name={hw.employee.full_name || hw.employee.email}
+                          name={displayName(hw.employee)}
                         />
                       </span>
                     )}
@@ -603,7 +603,7 @@ export default async function RequestsPage() {
                       <span className="text-sm font-medium text-gray-900">
                         <UserNameLink
                           userId={ot.employee_id}
-                          name={ot.employee.full_name || ot.employee.email}
+                          name={displayName(ot.employee)}
                         />
                       </span>
                     )}

@@ -44,7 +44,8 @@ export function PeoplePicker({
       .filter((u) => {
         if (!q) return true;
         return (
-          u.full_name.toLowerCase().includes(q) ||
+          displayName(u).toLowerCase().includes(q) ||
+          (u.full_name?.toLowerCase().includes(q) ?? false) ||
           u.email.toLowerCase().includes(q) ||
           (u.preferred_name?.toLowerCase().includes(q) ?? false)
         );

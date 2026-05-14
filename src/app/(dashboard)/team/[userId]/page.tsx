@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hasRole } from "@/lib/utils";
+import { hasRole, displayName } from "@/lib/utils";
 import {
   type ProfileField,
   type ProfileFieldSection,
@@ -39,16 +39,16 @@ export default async function TeamMemberProfileTab({
   if (user.manager_id) {
     const { data: manager } = await supabase
       .from("users")
-      .select("id, full_name, email")
+      .select("id, full_name, preferred_name, first_name, last_name, email")
       .eq("id", user.manager_id)
       .single();
-    managerName = manager?.full_name || manager?.email || null;
+    managerName = manager ? displayName(manager) : null;
     managerId = manager?.id ?? null;
   }
 
   const { data: directReports } = await supabase
     .from("users")
-    .select("id, full_name, email, avatar_url")
+    .select("id, full_name, preferred_name, first_name, last_name, email, avatar_url")
     .eq("manager_id", userId)
     .eq("is_active", true)
     .order("full_name");
@@ -81,12 +81,7 @@ export default async function TeamMemberProfileTab({
   const customFieldsSubmitMode: "direct" | "queue" = isAdmin
     ? "direct"
     : "queue";
-  const employeeLabel =
-    user?.preferred_name ||
-    user?.first_name ||
-    user?.full_name ||
-    user?.email ||
-    userId;
+  const employeeLabel = displayName(user) || userId;
 
   const builtInByKey = new Map<string, ProfileField>();
   for (const f of customFieldsList) {
@@ -159,13 +154,13 @@ export default async function TeamMemberProfileTab({
                   className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-gray-50"
                 >
                   <UserAvatar
-                    name={report.full_name || report.email}
+                    name={displayName(report)}
                     avatarUrl={report.avatar_url}
                     size="sm"
                   />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-gray-900">
-                      {report.full_name || report.email}
+                      {displayName(report)}
                     </p>
                     <p className="truncate text-xs text-gray-500">
                       {report.email}

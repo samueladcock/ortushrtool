@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { ArrowLeft, UsersRound } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { displayName } from "@/lib/utils";
 
 export default async function PlanAssigneesPage({
   params,
@@ -22,7 +23,7 @@ export default async function PlanAssigneesPage({
     supabase
       .from("employee_leave_plans")
       .select(
-        "user:users!employee_leave_plans_employee_id_fkey(id, full_name, preferred_name, email, department, avatar_url, is_active)"
+        "user:users!employee_leave_plans_employee_id_fkey(id, full_name, preferred_name, first_name, last_name, email, department, avatar_url, is_active)"
       )
       .eq("plan_id", planId),
   ]);
@@ -47,6 +48,8 @@ export default async function PlanAssigneesPage({
           id: string;
           full_name: string;
           preferred_name: string | null;
+          first_name: string | null;
+          last_name: string | null;
           email: string;
           department: string | null;
           avatar_url: string | null;
@@ -57,7 +60,7 @@ export default async function PlanAssigneesPage({
   const users = ((assignments ?? []) as unknown as RawAssignment[])
     .map((a) => (Array.isArray(a.user) && a.user.length > 0 ? a.user[0] : null))
     .filter((u): u is NonNullable<typeof u> => u !== null)
-    .sort((a, b) => (a.full_name || a.email).localeCompare(b.full_name || b.email));
+    .sort((a, b) => displayName(a).localeCompare(displayName(b)));
 
   const active = users.filter((u) => u.is_active);
   const inactive = users.filter((u) => !u.is_active);
@@ -103,13 +106,13 @@ export default async function PlanAssigneesPage({
                   className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50"
                 >
                   <UserAvatar
-                    name={u.full_name || u.email}
+                    name={displayName(u)}
                     avatarUrl={u.avatar_url}
                     size="sm"
                   />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-gray-900">
-                      {u.full_name || u.email}
+                      {displayName(u)}
                       {!u.is_active && (
                         <span className="ml-2 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-gray-500">
                           Inactive

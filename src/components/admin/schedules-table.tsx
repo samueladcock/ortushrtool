@@ -5,10 +5,14 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { DAYS_OF_WEEK } from "@/lib/constants";
 import { Search, Pencil, Flag } from "lucide-react";
+import { displayName } from "@/lib/utils";
 
 interface UserRow {
   id: string;
   full_name: string;
+  preferred_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   email: string;
   timezone: string;
   manager_id: string | null;
@@ -151,7 +155,8 @@ export function SchedulesTable({
     const q = search.toLowerCase();
     return users.filter(
       (u) =>
-        u.full_name.toLowerCase().includes(q) ||
+        displayName(u).toLowerCase().includes(q) ||
+        (u.full_name?.toLowerCase().includes(q) ?? false) ||
         u.email.toLowerCase().includes(q)
     );
   }, [users, search]);
@@ -277,7 +282,7 @@ export function SchedulesTable({
                     >
                       <span className="flex items-center gap-1.5">
                         <span className="text-blue-600 hover:underline">
-                          {user.full_name || user.email.split("@")[0]}
+                          {displayName(user)}
                         </span>
                         {isFlagged && (
                           <button

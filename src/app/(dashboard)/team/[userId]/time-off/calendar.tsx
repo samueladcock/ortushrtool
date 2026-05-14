@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
+import { displayName } from "@/lib/utils";
 
 export type CalendarLeave = {
   id: string;
@@ -32,7 +33,13 @@ export type CalendarLeave = {
   created_at: string;
   reviewed_at: string | null;
   reviewer_notes: string | null;
-  reviewer: { full_name: string | null; email: string | null } | null;
+  reviewer: {
+    full_name: string | null;
+    preferred_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+  } | null;
 };
 
 export function TimeOffCalendar({ leaves }: { leaves: CalendarLeave[] }) {
@@ -182,8 +189,7 @@ function LeaveDetailModal({
     pending: "bg-amber-100 text-amber-800",
     rejected: "bg-gray-200 text-gray-700",
   };
-  const reviewerName =
-    leave.reviewer?.full_name || leave.reviewer?.email || null;
+  const reviewerName = leave.reviewer ? displayName(leave.reviewer) : null;
   const sameDay = leave.start_date === leave.end_date;
 
   return (

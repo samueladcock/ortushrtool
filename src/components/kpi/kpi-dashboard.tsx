@@ -13,7 +13,7 @@ import type {
   KpiPeriodType,
   User,
 } from "@/types/database";
-import { hasRole } from "@/lib/utils";
+import { hasRole, displayName } from "@/lib/utils";
 import { Plus, Pencil, History, Target } from "lucide-react";
 import { KpiDefinitionForm } from "./kpi-definition-form";
 import { KpiAssignForm } from "./kpi-assign-form";
@@ -24,6 +24,9 @@ import { UserNameLink } from "@/components/shared/user-name-link";
 interface TeamMember {
   id: string;
   full_name: string;
+  preferred_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   email: string;
   manager_id: string | null;
 }
@@ -250,7 +253,7 @@ export function KpiDashboard({
               <option value="">All Employees</option>
               {teamMembers.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.full_name || m.email}
+                  {displayName(m)}
                 </option>
               ))}
             </select>
@@ -345,9 +348,9 @@ export function KpiDashboard({
                             <UserNameLink
                               userId={assignment.employee_id}
                               name={
-                                assignment.employee?.full_name ||
-                                assignment.employee?.email ||
-                                "—"
+                                assignment.employee
+                                  ? displayName(assignment.employee)
+                                  : "—"
                               }
                             />
                           </p>

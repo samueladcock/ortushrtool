@@ -24,7 +24,13 @@ type LeaveLite = Pick<
   | "reviewed_at"
   | "reviewer_notes"
 > & {
-  reviewer: { full_name: string | null; email: string | null } | null;
+  reviewer: {
+    full_name: string | null;
+    preferred_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+  } | null;
 };
 
 function countWeekdays(start: string, end: string): number {
@@ -76,7 +82,7 @@ export default async function TeamMemberTimeOffTab({
     supabase
       .from("leave_requests")
       .select(
-        "id, leave_type, leave_duration, half_day_period, start_date, end_date, status, reason, created_at, reviewed_at, reviewer_notes, reviewer:users!leave_requests_reviewed_by_fkey(full_name, email)"
+        "id, leave_type, leave_duration, half_day_period, start_date, end_date, status, reason, created_at, reviewed_at, reviewer_notes, reviewer:users!leave_requests_reviewed_by_fkey(full_name, preferred_name, first_name, last_name, email)"
       )
       .eq("employee_id", userId)
       .order("start_date", { ascending: true }),
@@ -107,7 +113,13 @@ export default async function TeamMemberTimeOffTab({
 
   // Supabase joins return reviewer as a single-element array; normalize to object|null.
   type RawLeaveRow = Omit<LeaveLite, "reviewer"> & {
-    reviewer: Array<{ full_name: string | null; email: string | null }> | null;
+    reviewer: Array<{
+      full_name: string | null;
+      preferred_name: string | null;
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+    }> | null;
   };
   const allLeaves: LeaveLite[] = ((leaves ?? []) as unknown as RawLeaveRow[]).map(
     (l) => ({

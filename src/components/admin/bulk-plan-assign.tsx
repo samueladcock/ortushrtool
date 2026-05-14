@@ -5,10 +5,14 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Users, Upload, Check } from "lucide-react";
 import type { LeavePlan } from "@/types/database";
+import { displayName } from "@/lib/utils";
 
 interface UserInfo {
   id: string;
   full_name: string;
+  preferred_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   email: string;
   department: string | null;
 }
@@ -38,7 +42,8 @@ export function BulkPlanAssign({ plans, users }: Props) {
     const q = search.toLowerCase();
     return users.filter(
       (u) =>
-        u.full_name.toLowerCase().includes(q) ||
+        displayName(u).toLowerCase().includes(q) ||
+        (u.full_name?.toLowerCase().includes(q) ?? false) ||
         u.email.toLowerCase().includes(q) ||
         (u.department ?? "").toLowerCase().includes(q)
     );
@@ -238,7 +243,7 @@ export function BulkPlanAssign({ plans, users }: Props) {
                   className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{u.full_name}</p>
+                  <p className="text-sm font-medium text-gray-900 truncate">{displayName(u)}</p>
                   <p className="text-xs text-gray-500 truncate">{u.email}{u.department ? ` — ${u.department}` : ""}</p>
                 </div>
               </label>

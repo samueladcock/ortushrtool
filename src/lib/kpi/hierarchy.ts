@@ -3,6 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 interface ReportUser {
   id: string;
   full_name: string;
+  preferred_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   email: string;
   manager_id: string | null;
 }
@@ -24,7 +27,7 @@ export async function getAllReports(
   // First level = direct reports
   const { data: directReports } = await supabase
     .from("users")
-    .select("id, full_name, email, manager_id")
+    .select("id, full_name, preferred_name, first_name, last_name, email, manager_id")
     .eq("manager_id", managerId)
     .eq("is_active", true)
     .order("full_name");
@@ -42,7 +45,7 @@ export async function getAllReports(
 
     const { data: reports } = await supabase
       .from("users")
-      .select("id, full_name, email, manager_id")
+      .select("id, full_name, preferred_name, first_name, last_name, email, manager_id")
       .eq("manager_id", currentId)
       .eq("is_active", true)
       .order("full_name");

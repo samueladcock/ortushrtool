@@ -71,7 +71,7 @@ function parseCSV(csvText: string): ParsedRow[] {
   };
 
   const preferredNameIdx = col(["preferred name", "preferred_name", "preferredname"]);
-  const firstNameIdx = col(["first name", "first_name", "firstname"]);
+  const firstNameIdx = col(["given name(s)", "given names", "given name", "first name", "first_name", "firstname"]);
   const middleNameIdx = col(["middle name", "middle_name", "middlename"]);
   const lastNameIdx = col(["last name", "last_name", "lastname"]);
   const nameIdx = col(["name", "person", "full_name"]);

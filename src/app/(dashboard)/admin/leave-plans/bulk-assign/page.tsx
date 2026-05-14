@@ -12,7 +12,7 @@ export default async function BulkAssignPage() {
     supabase.from("leave_plans").select("*").order("name"),
     supabase
       .from("users")
-      .select("id, full_name, email, department")
+      .select("id, full_name, preferred_name, first_name, last_name, email, department")
       .eq("is_active", true)
       .order("full_name"),
   ]);

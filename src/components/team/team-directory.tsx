@@ -286,11 +286,15 @@ function GridView({ users }: { users: TeamUser[] }) {
       {users.map((user) => {
         const status = statusFor(user);
         return (
-          <Link
+          <div
             key={user.id}
-            href={`/team/${user.id}`}
-            className="rounded-xl border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
+            className="relative rounded-xl border border-gray-200 bg-white p-4 transition-shadow hover:shadow-md"
           >
+            <Link
+              href={`/team/${user.id}`}
+              className="absolute inset-0 rounded-xl"
+              aria-label={`View ${displayName(user)}`}
+            />
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
                 {getInitials(user)}
@@ -332,8 +336,7 @@ function GridView({ users }: { users: TeamUser[] }) {
                     Reports to{" "}
                     <Link
                       href={`/team/${user.manager_id}`}
-                      className="text-blue-600 hover:underline"
-                      onClick={(e) => e.stopPropagation()}
+                      className="relative text-blue-600 hover:underline"
                     >
                       {user.manager_name}
                     </Link>
@@ -341,7 +344,7 @@ function GridView({ users }: { users: TeamUser[] }) {
                 )}
               </div>
             </div>
-          </Link>
+          </div>
         );
       })}
     </div>

@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/helpers";
 import { createClient } from "@/lib/supabase/server";
-import { hasRole, formatDate, formatTime } from "@/lib/utils";
+import { hasRole, formatDate, formatTime, displayName } from "@/lib/utils";
 import { AdjustmentActions } from "@/components/adjustments/adjustment-actions";
 import { CancelRequest } from "@/components/shared/cancel-request";
 import Link from "next/link";
@@ -65,7 +65,7 @@ export default async function AdjustmentsPage() {
                       <p className="font-medium text-gray-900">
                         <UserNameLink
                           userId={adj.employee_id}
-                          name={adj.employee.full_name || adj.employee.email}
+                          name={displayName(adj.employee)}
                         />
                       </p>
                     )}
@@ -132,7 +132,7 @@ export default async function AdjustmentsPage() {
                     <p className="font-medium text-gray-900">
                       <UserNameLink
                         userId={adj.employee_id}
-                        name={adj.employee.full_name || adj.employee.email}
+                        name={displayName(adj.employee)}
                       />
                     </p>
                   )}

@@ -14,7 +14,13 @@ import type {
 } from "@/types/database";
 
 type Peer = PeerFeedbackRequest & {
-  reviewer?: { full_name: string; preferred_name: string | null; email: string } | null;
+  reviewer?: {
+    full_name: string;
+    preferred_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    email: string;
+  } | null;
 };
 
 export function ReviewForm({

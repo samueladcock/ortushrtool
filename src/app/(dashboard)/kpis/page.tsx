@@ -6,7 +6,7 @@ import { getAllReports } from "@/lib/kpi/hierarchy";
 import { KpiDashboard } from "@/components/kpi/kpi-dashboard";
 
 const KPI_SELECT =
-  "*, kpi_definition:kpi_definitions!kpi_assignments_kpi_definition_id_fkey(*), employee:users!kpi_assignments_employee_id_fkey(id, full_name, email)";
+  "*, kpi_definition:kpi_definitions!kpi_assignments_kpi_definition_id_fkey(*), employee:users!kpi_assignments_employee_id_fkey(id, full_name, preferred_name, first_name, last_name, email)";
 
 export default async function KpisPage() {
   const user = await getCurrentUser();
@@ -22,11 +22,11 @@ export default async function KpisPage() {
     .order("period_start", { ascending: false });
 
   // Hierarchy data
-  let directReports: { id: string; full_name: string; email: string; manager_id: string | null }[] = [];
-  let indirectReports: { id: string; full_name: string; email: string; manager_id: string | null }[] = [];
+  let directReports: { id: string; full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; email: string; manager_id: string | null }[] = [];
+  let indirectReports: { id: string; full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; email: string; manager_id: string | null }[] = [];
   let directReportAssignments: typeof myAssignments = [];
   let indirectReportAssignments: typeof myAssignments = [];
-  let allEmployees: { id: string; full_name: string; email: string; manager_id: string | null }[] = [];
+  let allEmployees: { id: string; full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; email: string; manager_id: string | null }[] = [];
   let allAssignments: typeof myAssignments = [];
   let definitions: { id: string; name: string; description: string | null; unit_type: string; unit_label: string | null; created_by: string; is_active: boolean; created_at: string; updated_at: string }[] = [];
 
@@ -37,7 +37,7 @@ export default async function KpisPage() {
     const [usersResult, assignmentsResult, defsResult] = await Promise.all([
       adminClient
         .from("users")
-        .select("id, full_name, email, manager_id")
+        .select("id, full_name, preferred_name, first_name, last_name, email, manager_id")
         .eq("is_active", true)
         .order("full_name"),
       adminClient

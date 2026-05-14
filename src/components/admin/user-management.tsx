@@ -8,6 +8,7 @@ import { Pencil, Save, X, Calendar, Trash2, Plus, KeyRound, Palmtree, Download, 
 import { EmployeeLeaveTypesModal } from "./employee-leave-types";
 import type { User, UserRole, HolidayCountry } from "@/types/database";
 import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
+import { displayName } from "@/lib/utils";
 
 const COUNTRY_OPTIONS: HolidayCountry[] = ["PH", "XK", "IT", "AE"];
 
@@ -34,13 +35,16 @@ export function UserManagement({
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const filteredUsers = users.filter(
-    (u) =>
-      u.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      (u.department ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (u.job_title ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredUsers = users.filter((u) => {
+    const q = search.toLowerCase();
+    return (
+      displayName(u).toLowerCase().includes(q) ||
+      (u.full_name?.toLowerCase().includes(q) ?? false) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.department ?? "").toLowerCase().includes(q) ||
+      (u.job_title ?? "").toLowerCase().includes(q)
+    );
+  });
 
   const startEdit = (user: User) => {
     setEditingId(user.id);
@@ -119,7 +123,7 @@ export function UserManagement({
   };
 
   const deleteUser = async (user: User) => {
-    if (!confirm(`Permanently delete ${user.full_name || user.email}? This will remove all their data (schedules, attendance, flags, etc.) and cannot be undone.`)) {
+    if (!confirm(`Permanently delete ${displayName(user)}? This will remove all their data (schedules, attendance, flags, etc.) and cannot be undone.`)) {
       return;
     }
     setDeleting(user.id);
@@ -177,7 +181,7 @@ export function UserManagement({
   };
 
   const resetPassword = async (user: User) => {
-    if (!confirm(`Send a password reset email to ${user.full_name || user.email}?`)) return;
+    if (!confirm(`Send a password reset email to ${displayName(user)}?`)) return;
     setResettingPassword(user.id);
     try {
       const res = await fetch("/api/admin/reset-password", {
@@ -230,7 +234,7 @@ export function UserManagement({
 
     const headers = [
       "Preferred Name",
-      "First Name",
+      "Given Name(s)",
       "Middle Name",
       "Last Name",
       "Email",
@@ -355,7 +359,7 @@ export function UserManagement({
                   />
                 </th>
                 <th className="px-4 py-3 font-medium text-gray-600">Preferred Name</th>
-                <th className="px-4 py-3 font-medium text-gray-600">First Name</th>
+                <th className="px-4 py-3 font-medium text-gray-600">Given Name(s)</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Middle Name</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Last Name</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Email</th>
@@ -515,13 +519,15 @@ export function UserManagement({
                             .filter((u) => u.id !== user.id)
                             .map((u) => (
                               <option key={u.id} value={u.id}>
-                                {u.full_name || u.email}
+                                {displayName(u)}
                               </option>
                             ))}
                         </select>
                       ) : (
-                        users.find((u) => u.id === user.manager_id)?.full_name ??
-                        "-"
+                        (() => {
+                          const mgr = users.find((u) => u.id === user.manager_id);
+                          return mgr ? displayName(mgr) : "-";
+                        })()
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -939,10 +945,10 @@ function AddUserModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Preferred Name</label>
-              <input type="text" placeholder="Defaults to first name" value={form.preferred_name} onChange={(e) => setForm({ ...form, preferred_name: e.target.value })} className={inputClass} />
+              <input type="text" placeholder="Defaults to given name(s)" value={form.preferred_name} onChange={(e) => setForm({ ...form, preferred_name: e.target.value })} className={inputClass} />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">First Name</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Given Name(s)</label>
               <input type="text" required value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} className={inputClass} />
             </div>
             <div>
@@ -980,7 +986,7 @@ function AddUserModal({
                 {users
                   .filter((u) => u.role === "manager" || u.role === "hr_admin" || u.role === "super_admin")
                   .map((u) => (
-                    <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+                    <option key={u.id} value={u.id}>{displayName(u)}</option>
                   ))}
               </select>
             </div>

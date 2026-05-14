@@ -5,7 +5,7 @@ import { AdminAdjustmentForm } from "@/components/admin/admin-adjustment-form";
 import { AdminLeaveForm } from "@/components/admin/admin-leave-form";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { formatDate, formatTime } from "@/lib/utils";
+import { formatDate, formatTime, displayName } from "@/lib/utils";
 
 export default async function UserSchedulePage({
   params,
@@ -59,10 +59,10 @@ export default async function UserSchedulePage({
   if (user.manager_id) {
     const { data: manager } = await supabase
       .from("users")
-      .select("full_name, email")
+      .select("full_name, preferred_name, first_name, last_name, email")
       .eq("id", user.manager_id)
       .single();
-    managerName = manager?.full_name || manager?.email || null;
+    managerName = manager ? displayName(manager) : null;
   }
 
   const tz =
@@ -85,7 +85,7 @@ export default async function UserSchedulePage({
           Back to Users
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">
-          {user.full_name || user.email}
+          {displayName(user)}
         </h1>
         <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-600">
           <span>{user.email}</span>

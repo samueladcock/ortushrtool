@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { CycleStatusControls } from "@/components/admin/cycle-status-controls";
+import { displayName } from "@/lib/utils";
 import type {
   ReviewCycle,
   ReviewFormTemplate,
@@ -51,7 +52,7 @@ export default async function CycleDetailPage({
     supabase
       .from("reviews")
       .select(
-        "id, employee_id, status, self_submitted_at, manager_submitted_at, signed_off_at, employee:users!reviews_employee_id_fkey(id, full_name, preferred_name, email, department)"
+        "id, employee_id, status, self_submitted_at, manager_submitted_at, signed_off_at, employee:users!reviews_employee_id_fkey(id, full_name, preferred_name, first_name, last_name, email, department)"
       )
       .eq("cycle_id", id),
   ]);
@@ -63,6 +64,8 @@ export default async function CycleDetailPage({
           id: string;
           full_name: string;
           preferred_name: string | null;
+          first_name: string | null;
+          last_name: string | null;
           email: string;
           department: string | null;
         }>
@@ -133,7 +136,7 @@ export default async function CycleDetailPage({
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-gray-900">
-                        {emp.full_name || emp.email}
+                        {displayName(emp)}
                       </p>
                       <p className="truncate text-xs text-gray-500">
                         {emp.email}

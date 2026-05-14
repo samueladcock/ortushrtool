@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { KPI_UNIT_TYPES } from "@/lib/constants";
 import type { KpiAssignmentWithDetails } from "@/types/database";
 import { X } from "lucide-react";
+import { displayName } from "@/lib/utils";
 
 interface HistoryEntry {
   id: string;
@@ -12,7 +13,13 @@ interface HistoryEntry {
   new_value: number;
   notes: string | null;
   created_at: string;
-  updated_by_user: { full_name: string; email: string } | null;
+  updated_by_user: {
+    full_name: string;
+    preferred_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    email: string;
+  } | null;
 }
 
 interface Props {
@@ -35,7 +42,7 @@ export function KpiHistoryModal({ assignment, onClose }: Props) {
       const { data } = await supabase
         .from("kpi_updates")
         .select(
-          "id, old_value, new_value, notes, created_at, updated_by_user:users!kpi_updates_updated_by_fkey(full_name, email)"
+          "id, old_value, new_value, notes, created_at, updated_by_user:users!kpi_updates_updated_by_fkey(full_name, preferred_name, first_name, last_name, email)"
         )
         .eq("kpi_assignment_id", assignment.id)
         .order("created_at", { ascending: false });
@@ -95,9 +102,9 @@ export function KpiHistoryModal({ assignment, onClose }: Props) {
                 </div>
                 <p className="mt-1 text-xs text-gray-600">
                   by{" "}
-                  {entry.updated_by_user?.full_name ||
-                    entry.updated_by_user?.email ||
-                    "Unknown"}
+                  {entry.updated_by_user
+                    ? displayName(entry.updated_by_user)
+                    : "Unknown"}
                 </p>
                 {entry.notes && (
                   <p className="mt-1 text-sm text-gray-700">{entry.notes}</p>

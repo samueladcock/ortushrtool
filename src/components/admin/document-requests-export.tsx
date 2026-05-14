@@ -63,7 +63,7 @@ export function DocumentRequestsExport({
       r.leave_end_date ?? "",
       r.additional_details ?? "",
       r.status,
-      r.processor?.full_name ?? "",
+      r.processor ? displayName(r.processor) : "",
       r.processed_at?.slice(0, 19).replace("T", " ") ?? "",
       r.processor_notes ?? "",
       r.processor_attachment_url ?? "",

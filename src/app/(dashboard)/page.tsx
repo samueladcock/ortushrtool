@@ -351,13 +351,13 @@ export default async function DashboardPage() {
   const { data: kudosRows } = await supabase
     .from("kudos")
     .select(
-      "*, sender:users!kudos_sender_id_fkey(full_name, preferred_name, email), recipient:users!kudos_recipient_id_fkey(full_name, preferred_name, email)"
+      "*, sender:users!kudos_sender_id_fkey(full_name, preferred_name, first_name, last_name, email), recipient:users!kudos_recipient_id_fkey(full_name, preferred_name, first_name, last_name, email)"
     )
     .order("created_at", { ascending: false })
     .limit(5);
   type RawKudosRow = Omit<KudosWithUsers, "sender" | "recipient"> & {
-    sender: Array<{ full_name: string; preferred_name: string | null; email: string }> | null;
-    recipient: Array<{ full_name: string; preferred_name: string | null; email: string }> | null;
+    sender: Array<{ full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; email: string }> | null;
+    recipient: Array<{ full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; email: string }> | null;
   };
   const recentKudos: KudosWithUsers[] = ((kudosRows ?? []) as unknown as RawKudosRow[]).map(
     (k) => ({
@@ -465,7 +465,7 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          Welcome, {user.full_name || user.email.split("@")[0]}
+          Welcome, {displayName(user)}
         </h1>
         <p className="text-gray-600">
           Here&apos;s your overview for today.

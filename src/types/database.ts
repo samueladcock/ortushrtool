@@ -155,6 +155,9 @@ export interface DocumentRequestWithEmployee extends DocumentRequest {
   processor?: {
     full_name: string;
     email: string;
+    preferred_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
   } | null;
 }
 
@@ -496,12 +499,33 @@ export interface KpiUpdate {
 
 export interface KpiAssignmentWithDetails extends KpiAssignment {
   kpi_definition?: KpiDefinition;
-  employee?: { id: string; full_name: string; email: string };
-  assigned_by_user?: { id: string; full_name: string; email: string };
+  employee?: {
+    id: string;
+    full_name: string;
+    preferred_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    email: string;
+  };
+  assigned_by_user?: {
+    id: string;
+    full_name: string;
+    preferred_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    email: string;
+  };
 }
 
 export interface KpiUpdateWithUser extends KpiUpdate {
-  updated_by_user?: { id: string; full_name: string; email: string };
+  updated_by_user?: {
+    id: string;
+    full_name: string;
+    preferred_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    email: string;
+  };
 }
 
 export type PendingChangeType =
@@ -540,7 +564,7 @@ interface MiniUser {
 export interface PendingChangeWithRequester extends PendingChange {
   requester?: MiniUser;
   target?: MiniUser | null;
-  decider?: { full_name: string; email: string } | null;
+  decider?: MiniUser | null;
 }
 
 // ─── Performance ──────────────────────────────────────────────────────────
@@ -648,6 +672,18 @@ export interface Kudos {
 }
 
 export interface KudosWithUsers extends Kudos {
-  sender?: { full_name: string; preferred_name: string | null; email: string } | null;
-  recipient?: { full_name: string; preferred_name: string | null; email: string } | null;
+  sender?: {
+    full_name: string;
+    preferred_name: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    email: string;
+  } | null;
+  recipient?: {
+    full_name: string;
+    preferred_name: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    email: string;
+  } | null;
 }

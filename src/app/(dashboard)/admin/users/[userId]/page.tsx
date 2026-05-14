@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { UserProfileForm } from "@/components/admin/user-profile-form";
 import type { User } from "@/types/database";
+import { displayName } from "@/lib/utils";
 
 export default async function AdminUserProfilePage({
   params,
@@ -50,7 +51,7 @@ export default async function AdminUserProfilePage({
           Back to Users
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">
-          {user.full_name || user.email}
+          {displayName(user)}
         </h1>
         <p className="text-gray-600">{user.email}</p>
       </div>

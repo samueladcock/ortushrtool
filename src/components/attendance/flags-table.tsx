@@ -229,7 +229,7 @@ export function FlagsTable({ initialFlags, employees, currentUserId, viewerIsAdm
 
     let query = supabase
       .from("attendance_flags")
-      .select("*, employee:users!attendance_flags_employee_id_fkey(full_name, email, manager_id)")
+      .select("*, employee:users!attendance_flags_employee_id_fkey(full_name, preferred_name, first_name, last_name, email, manager_id)")
       .order("flag_date", { ascending: false });
 
     query = query.in("employee_id", employeeIds);

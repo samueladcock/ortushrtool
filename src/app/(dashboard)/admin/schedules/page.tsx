@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth/helpers";
 import { createClient } from "@/lib/supabase/server";
 import { SchedulesTable } from "@/components/admin/schedules-table";
 import { ScheduleCsvImport } from "@/components/admin/schedule-csv-import";
+import { displayName } from "@/lib/utils";
 
 export default async function AdminSchedulesPage() {
   await requireRole("hr_admin");
@@ -11,7 +12,7 @@ export default async function AdminSchedulesPage() {
 
   const { data: users } = await supabase
     .from("users")
-    .select("id, full_name, email, timezone, manager_id, role")
+    .select("id, full_name, preferred_name, first_name, last_name, email, timezone, manager_id, role")
     .eq("is_active", true)
     .order("full_name");
 
@@ -21,10 +22,10 @@ export default async function AdminSchedulesPage() {
     .lte("effective_from", today)
     .or(`effective_until.is.null,effective_until.gte.${today}`);
 
-  // Build manager name lookup
+  // Build manager name lookup (preferred-name display)
   const managerMap: Record<string, string> = {};
   for (const u of users ?? []) {
-    managerMap[u.id] = u.full_name || u.email;
+    managerMap[u.id] = displayName(u);
   }
 
   return (

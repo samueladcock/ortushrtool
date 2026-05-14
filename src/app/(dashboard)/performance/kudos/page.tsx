@@ -11,13 +11,13 @@ export default async function PerformanceKudosPage() {
   const { data: rows } = await admin
     .from("kudos")
     .select(
-      "*, sender:users!kudos_sender_id_fkey(full_name, preferred_name, email), recipient:users!kudos_recipient_id_fkey(full_name, preferred_name, email)"
+      "*, sender:users!kudos_sender_id_fkey(full_name, preferred_name, first_name, last_name, email), recipient:users!kudos_recipient_id_fkey(full_name, preferred_name, first_name, last_name, email)"
     )
     .eq("recipient_id", user.id)
     .order("created_at", { ascending: false });
   type RawKudosRow = Omit<KudosWithUsers, "sender" | "recipient"> & {
-    sender: Array<{ full_name: string; preferred_name: string | null; email: string }> | null;
-    recipient: Array<{ full_name: string; preferred_name: string | null; email: string }> | null;
+    sender: Array<{ full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; email: string }> | null;
+    recipient: Array<{ full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; email: string }> | null;
   };
   const kudos = ((rows ?? []) as unknown as RawKudosRow[]).map((k) => ({
     ...k,

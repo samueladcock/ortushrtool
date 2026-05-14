@@ -10,7 +10,7 @@ export default async function HRDocumentRequestsPage() {
   const { data: requests } = await supabase
     .from("document_requests")
     .select(
-      "*, employee:users!document_requests_employee_id_fkey(full_name, preferred_name, first_name, last_name, email), processor:users!document_requests_processed_by_fkey(full_name, email)"
+      "*, employee:users!document_requests_employee_id_fkey(full_name, preferred_name, first_name, last_name, email), processor:users!document_requests_processed_by_fkey(full_name, preferred_name, first_name, last_name, email)"
     )
     .order("created_at", { ascending: false });
 

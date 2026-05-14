@@ -7,13 +7,21 @@ import { displayName } from "@/lib/utils";
 import type { PeerFeedbackRequest } from "@/types/database";
 
 type Peer = PeerFeedbackRequest & {
-  reviewer?: { full_name: string; preferred_name: string | null; email: string } | null;
+  reviewer?: {
+    full_name: string;
+    preferred_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    email: string;
+  } | null;
 };
 
 type Candidate = {
   id: string;
   full_name: string;
   preferred_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   email: string;
 };
 
@@ -101,7 +109,7 @@ export function PeerRequestPanel({
             <option value="">Pick a colleague…</option>
             {available.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.full_name || u.email}
+                {displayName(u)}
               </option>
             ))}
           </select>

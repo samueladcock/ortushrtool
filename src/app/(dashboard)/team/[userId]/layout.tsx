@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hasRole } from "@/lib/utils";
+import { hasRole, displayName } from "@/lib/utils";
 import Link from "next/link";
 import { ArrowLeft, Building2, MapPin } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -38,7 +38,7 @@ export default async function TeamMemberLayout({
 
   const { data: user } = await supabase
     .from("users")
-    .select("id, full_name, email, role, job_title, department, location, avatar_url, manager_id")
+    .select("id, full_name, preferred_name, first_name, last_name, email, role, job_title, department, location, avatar_url, manager_id")
     .eq("id", userId)
     .single();
 
@@ -100,18 +100,18 @@ export default async function TeamMemberLayout({
             <AvatarUpload
               userId={user.id}
               currentAvatarUrl={user.avatar_url}
-              userName={user.full_name || user.email}
+              userName={displayName(user)}
             />
           ) : (
             <UserAvatar
-              name={user.full_name || user.email}
+              name={displayName(user)}
               avatarUrl={user.avatar_url}
               size="lg"
             />
           )}
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold text-gray-900">
-              {user.full_name || user.email}
+              {displayName(user)}
             </h1>
             {user.job_title && (
               <p className="mt-0.5 text-sm text-gray-600">{user.job_title}</p>

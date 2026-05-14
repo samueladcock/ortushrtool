@@ -91,7 +91,7 @@ export const SOURCES: SourceDef[] = [
     columns: [
       { id: "full_name", label: "Full Name", value: (r) => r.full_name ?? "" },
       { id: "preferred_name", label: "Preferred Name", value: (r) => r.preferred_name ?? "" },
-      { id: "first_name", label: "First Name", value: (r) => r.first_name ?? "" },
+      { id: "first_name", label: "Given Name(s)", value: (r) => r.first_name ?? "" },
       { id: "middle_name", label: "Middle Name", value: (r) => r.middle_name ?? "" },
       { id: "last_name", label: "Last Name", value: (r) => r.last_name ?? "" },
       { id: "email", label: "Email", value: (r) => r.email ?? "" },

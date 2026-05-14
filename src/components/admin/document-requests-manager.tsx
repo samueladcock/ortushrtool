@@ -279,8 +279,8 @@ function RequestList({
                 {r.status === "processed" && (
                   <p className="text-xs text-green-700">
                     Processed
-                    {r.processor?.full_name
-                      ? ` by ${r.processor.full_name}`
+                    {r.processor
+                      ? ` by ${displayName(r.processor)}`
                       : ""}
                     {r.processed_at
                       ? ` on ${formatDate(r.processed_at.slice(0, 10))}`

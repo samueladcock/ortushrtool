@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { X, Check, Loader2, Plus, Trash2 } from "lucide-react";
 import { LEAVE_TYPES, ACTIVATABLE_LEAVE_TYPES } from "@/lib/constants";
 import type { User, LeavePlan } from "@/types/database";
+import { displayName } from "@/lib/utils";
 
 interface Props {
   user: User;
@@ -143,7 +144,7 @@ export function EmployeeLeaveTypesModal({ user, onClose }: Props) {
             <h3 className="text-lg font-semibold text-gray-900">
               Leave Configuration
             </h3>
-            <p className="text-sm text-gray-500">{user.full_name}</p>
+            <p className="text-sm text-gray-500">{displayName(user)}</p>
           </div>
           <button
             onClick={onClose}

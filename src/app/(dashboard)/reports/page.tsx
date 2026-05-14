@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { QuickExports } from "@/components/reports/quick-exports";
 import { ReportBuilder } from "@/components/reports/report-builder";
 import type { FilterValues } from "@/lib/reports/sources";
+import { displayName } from "@/lib/utils";
 
 export default async function ReportsPage() {
   await requireRole("hr_admin");
@@ -11,19 +12,25 @@ export default async function ReportsPage() {
   const { data: templates } = await supabase
     .from("report_templates")
     .select(
-      "id, name, source, columns, filters, created_at, creator:users!report_templates_created_by_fkey(full_name)"
+      "id, name, source, columns, filters, created_at, creator:users!report_templates_created_by_fkey(full_name, preferred_name, first_name, last_name, email)"
     )
     .order("created_at", { ascending: false });
 
+  type CreatorRef = {
+    full_name?: string | null;
+    preferred_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+  };
   const normalised = (templates ?? []).map((t) => {
     const creator = (t as { creator?: unknown }).creator as
-      | { full_name?: string }
-      | { full_name?: string }[]
+      | CreatorRef
+      | CreatorRef[]
       | null
       | undefined;
-    const createdByName = Array.isArray(creator)
-      ? creator[0]?.full_name
-      : creator?.full_name;
+    const creatorRef = Array.isArray(creator) ? creator[0] : creator;
+    const createdByName = creatorRef ? displayName(creatorRef) : undefined;
     return {
       id: t.id,
       name: t.name,

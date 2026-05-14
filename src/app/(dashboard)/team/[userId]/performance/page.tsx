@@ -61,17 +61,17 @@ export default async function TeamMemberPerformanceTab({
   const { data: rawKudos } = await supabase
     .from("kudos")
     .select(
-      "*, sender:users!kudos_sender_id_fkey(full_name, preferred_name, email), recipient:users!kudos_recipient_id_fkey(full_name, preferred_name, email)"
+      "*, sender:users!kudos_sender_id_fkey(full_name, preferred_name, first_name, last_name, email), recipient:users!kudos_recipient_id_fkey(full_name, preferred_name, first_name, last_name, email)"
     )
     .eq("recipient_id", userId)
     .order("created_at", { ascending: false });
 
   type RawKudosRow = Omit<KudosWithUsers, "sender" | "recipient"> & {
     sender:
-      | Array<{ full_name: string; preferred_name: string | null; email: string }>
+      | Array<{ full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; email: string }>
       | null;
     recipient:
-      | Array<{ full_name: string; preferred_name: string | null; email: string }>
+      | Array<{ full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; email: string }>
       | null;
   };
   const normalize = <T extends { full_name: string; preferred_name: string | null; email: string }>(
@@ -160,7 +160,7 @@ export default async function TeamMemberPerformanceTab({
   type PeerRow = Omit<PeerFeedbackRequest, "response"> & {
     response: Record<string, { rating: number | null; comment: string }>;
     reviewer:
-      | Array<{ full_name: string; preferred_name: string | null; email: string }>
+      | Array<{ full_name: string; preferred_name: string | null; first_name: string | null; last_name: string | null; email: string }>
       | null;
   };
   const reviewIds = reviewsList.map((r) => r.id);
@@ -169,7 +169,7 @@ export default async function TeamMemberPerformanceTab({
       ? await supabase
           .from("peer_feedback_requests")
           .select(
-            "*, reviewer:users!peer_feedback_requests_reviewer_id_fkey(full_name, preferred_name, email)"
+            "*, reviewer:users!peer_feedback_requests_reviewer_id_fkey(full_name, preferred_name, first_name, last_name, email)"
           )
           .in("review_id", reviewIds)
       : { data: [] };
@@ -210,7 +210,7 @@ export default async function TeamMemberPerformanceTab({
   // themselves. (We could refine later — e.g. exclude direct manager.)
   const { data: candidatesData } = await supabase
     .from("users")
-    .select("id, full_name, preferred_name, email")
+    .select("id, full_name, preferred_name, first_name, last_name, email")
     .eq("is_active", true)
     .neq("id", userId)
     .order("full_name");
@@ -219,6 +219,8 @@ export default async function TeamMemberPerformanceTab({
       id: string;
       full_name: string;
       preferred_name: string | null;
+      first_name: string | null;
+      last_name: string | null;
       email: string;
     }>;
 
@@ -260,6 +262,8 @@ export default async function TeamMemberPerformanceTab({
                   ? ((p as { reviewer?: unknown[] }).reviewer as Array<{
                       full_name: string;
                       preferred_name: string | null;
+                      first_name: string | null;
+                      last_name: string | null;
                       email: string;
                     }>)[0]
                   : null,
@@ -276,6 +280,8 @@ export default async function TeamMemberPerformanceTab({
                     ? ((p as { reviewer?: unknown[] }).reviewer as Array<{
                         full_name: string;
                         preferred_name: string | null;
+                        first_name: string | null;
+                        last_name: string | null;
                         email: string;
                       }>)[0]
                     : null,

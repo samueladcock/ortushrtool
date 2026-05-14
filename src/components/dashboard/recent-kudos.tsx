@@ -28,7 +28,7 @@ export function RecentKudos({ kudos }: { kudos: KudosWithUsers[] }) {
             className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3"
           >
             <UserAvatar
-              name={k.sender?.full_name || k.sender?.email || "Someone"}
+              name={displayName(k.sender ?? null)}
               avatarUrl={null}
               size="sm"
             />

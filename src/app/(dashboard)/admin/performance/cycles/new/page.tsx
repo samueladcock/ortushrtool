@@ -14,7 +14,7 @@ export default async function NewCyclePage() {
       .order("name"),
     supabase
       .from("users")
-      .select("id, full_name, email, department, is_active")
+      .select("id, full_name, preferred_name, first_name, last_name, email, department, is_active")
       .eq("is_active", true)
       .order("full_name"),
   ]);
@@ -35,7 +35,15 @@ export default async function NewCyclePage() {
       </div>
       <NewCycleForm
         templates={(templates ?? []) as { id: string; name: string }[]}
-        users={(users ?? []) as { id: string; full_name: string; email: string; department: string | null }[]}
+        users={(users ?? []) as {
+          id: string;
+          full_name: string;
+          preferred_name: string | null;
+          first_name: string | null;
+          last_name: string | null;
+          email: string;
+          department: string | null;
+        }[]}
       />
     </div>
   );

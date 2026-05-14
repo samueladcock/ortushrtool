@@ -142,12 +142,12 @@ export function UserProfileForm({
           <input
             type="text"
             value={form.preferred_name ?? ""}
-            placeholder="Defaults to first name"
+            placeholder="Defaults to given name(s)"
             onChange={(e) => update("preferred_name", e.target.value)}
             className={inputClass}
           />
         </Field>
-        <Field label="First Name">
+        <Field label="Given Name(s)">
           <input
             type="text"
             value={form.first_name ?? ""}

@@ -3,11 +3,15 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Save } from "lucide-react";
+import { displayName } from "@/lib/utils";
 
 type Template = { id: string; name: string };
 type User = {
   id: string;
   full_name: string;
+  preferred_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   email: string;
   department: string | null;
 };
@@ -45,7 +49,8 @@ export function NewCycleForm({
       if (deptFilter && u.department !== deptFilter) return false;
       if (!q) return true;
       return (
-        u.full_name.toLowerCase().includes(q) ||
+        displayName(u).toLowerCase().includes(q) ||
+        (u.full_name?.toLowerCase().includes(q) ?? false) ||
         u.email.toLowerCase().includes(q)
       );
     });
@@ -225,7 +230,7 @@ export function NewCycleForm({
                   />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-gray-900">
-                      {u.full_name}
+                      {displayName(u)}
                     </p>
                     <p className="truncate text-xs text-gray-500">
                       {u.email}

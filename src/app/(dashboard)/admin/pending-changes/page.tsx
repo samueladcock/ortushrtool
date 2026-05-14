@@ -10,7 +10,7 @@ export default async function PendingChangesPage() {
   const { data: changes } = await supabase
     .from("pending_changes")
     .select(
-      "*, requester:users!pending_changes_requested_by_fkey(full_name, preferred_name, first_name, last_name, email), target:users!pending_changes_target_employee_id_fkey(full_name, preferred_name, first_name, last_name, email), decider:users!pending_changes_decided_by_fkey(full_name, email)"
+      "*, requester:users!pending_changes_requested_by_fkey(full_name, preferred_name, first_name, last_name, email), target:users!pending_changes_target_employee_id_fkey(full_name, preferred_name, first_name, last_name, email), decider:users!pending_changes_decided_by_fkey(full_name, preferred_name, first_name, last_name, email)"
     )
     .order("requested_at", { ascending: false });
 
