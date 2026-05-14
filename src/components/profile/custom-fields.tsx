@@ -228,6 +228,30 @@ export function CustomFieldsSection({
                   }
                   className={`mt-1 ${inputClass}`}
                 />
+              ) : f.field_type === "select" ? (
+                <select
+                  value={draft[f.id] ?? ""}
+                  onChange={(e) =>
+                    setDraft((prev) => ({ ...prev, [f.id]: e.target.value }))
+                  }
+                  className={`mt-1 ${inputClass}`}
+                >
+                  <option value="">—</option>
+                  {(f.options ?? []).map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                  {/* If the stored value isn't in the current options list
+                      (e.g. legacy free-text value), keep it selectable so it
+                      doesn't silently get wiped on save. */}
+                  {draft[f.id] &&
+                    !(f.options ?? []).includes(draft[f.id]) && (
+                      <option value={draft[f.id]}>
+                        {draft[f.id]} (legacy)
+                      </option>
+                    )}
+                </select>
               ) : (
                 <input
                   type={

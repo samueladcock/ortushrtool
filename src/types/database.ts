@@ -167,7 +167,8 @@ export type ProfileFieldType =
   | "date"
   | "number"
   | "url"
-  | "multi_row";
+  | "multi_row"
+  | "select";
 export type ProfileFieldVisibility =
   | "everyone"
   | "manager_admin"
@@ -217,6 +218,8 @@ export interface ProfileField {
   built_in_key: string | null;
   /** Sub-field schema for multi_row fields. Empty array for scalar types. */
   subfields: ProfileFieldSubfield[];
+  /** Option labels for 'select' fields. Empty array for other types. */
+  options: string[];
   created_at: string;
   updated_at: string;
 }
@@ -256,6 +259,7 @@ export const PROFILE_FIELD_TYPE_LABELS: Record<ProfileFieldType, string> = {
   number: "Number",
   url: "URL",
   multi_row: "Multi-row",
+  select: "Dropdown",
 };
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentRequestType, string> = {

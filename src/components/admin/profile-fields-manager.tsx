@@ -22,6 +22,7 @@ const FIELD_TYPES: ProfileFieldType[] = [
   "date",
   "number",
   "url",
+  "select",
   "multi_row",
 ];
 const SUBFIELD_TYPES: ProfileFieldSubfieldType[] = [
@@ -91,12 +92,14 @@ export function ProfileFieldsManager({
     visibility: ProfileFieldVisibility;
     visible_to_recruiter: boolean;
     subfields: ProfileFieldSubfield[];
+    options: string[];
   }>({
     label: "",
     field_type: "text",
     visibility: "manager_admin",
     visible_to_recruiter: false,
     subfields: [],
+    options: [],
   });
 
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
@@ -278,6 +281,13 @@ export function ProfileFieldsManager({
       setMessage("Multi-row fields need at least one sub-field.");
       return;
     }
+    if (
+      draftField.field_type === "select" &&
+      draftField.options.filter((o) => o.trim()).length === 0
+    ) {
+      setMessage("Dropdown fields need at least one option.");
+      return;
+    }
     const supabase = createClient();
     const existing = fieldsBySection.get(sectionId) ?? [];
     const { data, error } = await supabase
@@ -291,6 +301,10 @@ export function ProfileFieldsManager({
         sort_order: existing.length,
         subfields:
           draftField.field_type === "multi_row" ? draftField.subfields : [],
+        options:
+          draftField.field_type === "select"
+            ? draftField.options.map((o) => o.trim()).filter(Boolean)
+            : [],
       })
       .select("*")
       .single();
@@ -307,6 +321,7 @@ export function ProfileFieldsManager({
         visibility: "manager_admin",
         visible_to_recruiter: false,
         subfields: [],
+        options: [],
       });
       router.refresh();
     }
@@ -704,6 +719,14 @@ export function ProfileFieldsManager({
                         }
                       />
                     )}
+                    {draftField.field_type === "select" && (
+                      <OptionsEditor
+                        options={draftField.options}
+                        onChange={(options) =>
+                          setDraftField({ ...draftField, options })
+                        }
+                      />
+                    )}
                   </div>
                 ) : (
                   <button
@@ -790,6 +813,7 @@ function FieldRow({
   const [subfields, setSubfields] = useState<ProfileFieldSubfield[]>(
     field.subfields ?? []
   );
+  const [options, setOptions] = useState<string[]>(field.options ?? []);
 
   const isBuiltIn = !!field.built_in_key;
 
@@ -847,11 +871,16 @@ function FieldRow({
               const effectiveType = isBuiltIn ? field.field_type : fieldType;
               const subfieldsPatch =
                 effectiveType === "multi_row" ? { subfields } : {};
+              const optionsPatch =
+                effectiveType === "select"
+                  ? { options: options.map((o) => o.trim()).filter(Boolean) }
+                  : {};
               if (isBuiltIn) {
                 onSave({
                   visibility,
                   visible_to_recruiter: visibleToRecruiter,
                   ...subfieldsPatch,
+                  ...optionsPatch,
                 });
               } else {
                 onSave({
@@ -860,13 +889,16 @@ function FieldRow({
                   visibility,
                   visible_to_recruiter: visibleToRecruiter,
                   ...subfieldsPatch,
+                  ...optionsPatch,
                 });
               }
             }}
             disabled={
               (!isBuiltIn && !label.trim()) ||
               ((isBuiltIn ? field.field_type : fieldType) === "multi_row" &&
-                subfields.length === 0)
+                subfields.length === 0) ||
+              ((isBuiltIn ? field.field_type : fieldType) === "select" &&
+                options.filter((o) => o.trim()).length === 0)
             }
             className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
@@ -882,6 +914,9 @@ function FieldRow({
         </div>
         {(isBuiltIn ? field.field_type : fieldType) === "multi_row" && (
           <SubfieldsEditor subfields={subfields} onChange={setSubfields} />
+        )}
+        {(isBuiltIn ? field.field_type : fieldType) === "select" && (
+          <OptionsEditor options={options} onChange={setOptions} />
         )}
       </div>
     );
@@ -937,6 +972,11 @@ function FieldRow({
         {field.field_type === "multi_row" && (field.subfields?.length ?? 0) > 0 && (
           <p className="mt-0.5 text-[11px] text-gray-400">
             Sub-fields: {field.subfields.map((s) => s.label).join(", ")}
+          </p>
+        )}
+        {field.field_type === "select" && (field.options?.length ?? 0) > 0 && (
+          <p className="mt-0.5 text-[11px] text-gray-400">
+            Options: {field.options.join(" / ")}
           </p>
         )}
       </div>
@@ -1075,6 +1115,61 @@ function SubfieldsEditor({
         className="mt-2 flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
       >
         <Plus size={12} /> Add sub-field
+      </button>
+    </div>
+  );
+}
+
+function OptionsEditor({
+  options,
+  onChange,
+}: {
+  options: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const addOption = () => onChange([...options, ""]);
+  const removeOption = (i: number) =>
+    onChange(options.filter((_, idx) => idx !== i));
+  const updateOption = (i: number, value: string) =>
+    onChange(options.map((o, idx) => (idx === i ? value : o)));
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-2">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+        Options
+      </p>
+      {options.length === 0 && (
+        <p className="mb-2 text-xs text-gray-400">
+          No options yet. Add at least one (e.g. Single, Married).
+        </p>
+      )}
+      <div className="space-y-1.5">
+        {options.map((opt, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              type="text"
+              value={opt}
+              onChange={(e) => updateOption(i, e.target.value)}
+              placeholder="Option label"
+              className={`flex-1 ${inputClass} text-xs`}
+            />
+            <button
+              type="button"
+              onClick={() => removeOption(i)}
+              className="rounded p-1 text-red-500 hover:bg-red-50"
+              title="Remove option"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={addOption}
+        className="mt-2 flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+      >
+        <Plus size={12} /> Add option
       </button>
     </div>
   );
