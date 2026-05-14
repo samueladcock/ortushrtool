@@ -39,6 +39,18 @@ const VISIBILITIES: ProfileFieldVisibility[] = [
   "hr_only",
 ];
 
+/**
+ * Built-in fields whose value is set elsewhere and rendered read-only on
+ * the employee profile. The field-manager shows a badge + hint so admins
+ * don't expect to edit them like a regular text field. Visibility is
+ * still editable.
+ */
+const AUTO_POPULATED_HINTS: Record<string, string> = {
+  role: "Set in User Management. Shown as a role badge on profiles.",
+  location:
+    "Derived from today's schedule (and any approved adjustment). Shown as a badge on profiles.",
+};
+
 function slugify(s: string): string {
   return s
     .toLowerCase()
@@ -962,6 +974,11 @@ function FieldRow({
               Built-in
             </span>
           )}
+          {AUTO_POPULATED_HINTS[field.built_in_key ?? ""] && (
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700">
+              Auto-populated
+            </span>
+          )}
         </div>
         <p className="text-xs text-gray-500">
           {PROFILE_FIELD_TYPE_LABELS[field.field_type]} ·{" "}
@@ -969,6 +986,11 @@ function FieldRow({
           {field.visible_to_recruiter ? " · + HR support" : ""}
           {valueCount > 0 ? ` · ${valueCount} value${valueCount === 1 ? "" : "s"} saved` : ""}
         </p>
+        {AUTO_POPULATED_HINTS[field.built_in_key ?? ""] && (
+          <p className="mt-0.5 text-[11px] text-amber-700">
+            {AUTO_POPULATED_HINTS[field.built_in_key ?? ""]}
+          </p>
+        )}
         {field.field_type === "multi_row" && (field.subfields?.length ?? 0) > 0 && (
           <p className="mt-0.5 text-[11px] text-gray-400">
             Sub-fields: {field.subfields.map((s) => s.label).join(", ")}
@@ -980,14 +1002,29 @@ function FieldRow({
           </p>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onStartEdit}
-        className="rounded p-1 text-gray-500 hover:bg-gray-100"
-        title={isBuiltIn ? "Change visibility" : "Edit"}
-      >
-        <Pencil size={14} />
-      </button>
+      {(() => {
+        const isAutoPopulated = !!AUTO_POPULATED_HINTS[field.built_in_key ?? ""];
+        return (
+          <button
+            type="button"
+            onClick={onStartEdit}
+            className={`rounded p-1 ${
+              isAutoPopulated
+                ? "text-gray-300 hover:bg-gray-50"
+                : "text-gray-500 hover:bg-gray-100"
+            }`}
+            title={
+              isAutoPopulated
+                ? "Auto-populated — only visibility can be changed"
+                : isBuiltIn
+                  ? "Change visibility"
+                  : "Edit"
+            }
+          >
+            <Pencil size={14} />
+          </button>
+        );
+      })()}
       {valueCount > 0 && !isBuiltIn && (
         <button
           type="button"

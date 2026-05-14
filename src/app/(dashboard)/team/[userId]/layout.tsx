@@ -57,6 +57,43 @@ export default async function TeamMemberLayout({
     );
   }
 
+  // Compute today's working location: an approved adjustment for today
+  // wins; otherwise fall back to the active schedule for today's
+  // day-of-week. Mon=0..Sun=6 to match the schedules table convention.
+  const todayStr = new Date().toISOString().split("T")[0];
+  const todayDow = (new Date().getDay() + 6) % 7;
+  const [{ data: todaySchedule }, { data: todayAdjustment }] = await Promise.all([
+    supabase
+      .from("schedules")
+      .select("work_location, is_rest_day")
+      .eq("employee_id", userId)
+      .eq("day_of_week", todayDow)
+      .lte("effective_from", todayStr)
+      .or(`effective_until.is.null,effective_until.gte.${todayStr}`)
+      .order("effective_from", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("schedule_adjustments")
+      .select("requested_work_location")
+      .eq("employee_id", userId)
+      .eq("requested_date", todayStr)
+      .eq("status", "approved")
+      .not("requested_work_location", "is", null)
+      .maybeSingle(),
+  ]);
+  const workingLocationToday: string | null =
+    todayAdjustment?.requested_work_location ??
+    (todaySchedule && !todaySchedule.is_rest_day
+      ? todaySchedule.work_location
+      : null);
+  const workingLocationLabel =
+    workingLocationToday === "office"
+      ? "Office today"
+      : workingLocationToday === "online"
+        ? "Online today"
+        : null;
+
   const isDirectManager = user.manager_id === currentUser.id;
   // Skip-level: viewer is manager of user's manager
   let isSkipLevel = false;
@@ -130,10 +167,10 @@ export default async function TeamMemberLayout({
                   {user.department}
                 </span>
               )}
-              {user.location && (
+              {workingLocationLabel && (
                 <span className="flex items-center gap-1">
                   <MapPin size={14} />
-                  {user.location}
+                  {workingLocationLabel}
                 </span>
               )}
             </div>
