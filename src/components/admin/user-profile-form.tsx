@@ -6,7 +6,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Save, Calendar, Clock } from "lucide-react";
 import {
+  COMPANY_OPTIONS,
   HOLIDAY_COUNTRY_LABELS,
+  type Company,
   type HolidayCountry,
   type User,
   type UserRole,
@@ -61,6 +63,7 @@ export function UserProfileForm({
       full_name: fullName || form.full_name,
       role: form.role,
       manager_id: form.manager_id || null,
+      company: form.company || null,
       department: form.department || null,
       job_title: form.job_title || null,
       location: form.location || null,
@@ -212,6 +215,22 @@ export function UserProfileForm({
                   {displayName(m)} ({m.email})
                 </option>
               ))}
+          </select>
+        </Field>
+        <Field label="Company">
+          <select
+            value={form.company ?? ""}
+            onChange={(e) =>
+              update("company", (e.target.value || null) as Company | null)
+            }
+            className={inputClass}
+          >
+            <option value="">—</option>
+            {COMPANY_OPTIONS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
         </Field>
         <Field label="Department">

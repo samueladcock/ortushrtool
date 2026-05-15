@@ -52,6 +52,19 @@ export const HOLIDAY_COUNTRY_LABELS: Record<HolidayCountry, string> = {
   AE: "Dubai (UAE)",
 };
 
+export type Company =
+  | "Ortus Strategy Pte. Ltd."
+  | "m-Club Coaching LTD."
+  | "Trinity Outsourcing Solutions Inc."
+  | "APEX Strategy";
+
+export const COMPANY_OPTIONS: Company[] = [
+  "Ortus Strategy Pte. Ltd.",
+  "m-Club Coaching LTD.",
+  "Trinity Outsourcing Solutions Inc.",
+  "APEX Strategy",
+];
+
 export type NotificationType =
   | "schedule_adjustment_request"
   | "schedule_adjustment_decision"
@@ -71,6 +84,7 @@ export interface User {
   last_name: string | null;
   role: UserRole;
   manager_id: string | null;
+  company: Company | null;
   department: string | null;
   job_title: string | null;
   location: string | null;

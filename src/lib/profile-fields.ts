@@ -1,4 +1,5 @@
 import {
+  COMPANY_OPTIONS,
   HOLIDAY_COUNTRY_LABELS,
   type HolidayCountry,
   type ProfileFieldVisibility,
@@ -37,6 +38,8 @@ export function builtInFieldValue(
       return user.email;
     case "role":
       return ROLE_LABELS[user.role] ?? user.role;
+    case "company":
+      return user.company;
     case "department":
       return user.department;
     case "job_title":
@@ -87,6 +90,27 @@ const ROLE_VALUES = new Set([
   "super_admin",
 ]);
 const COUNTRY_VALUES = new Set(["PH", "XK", "IT", "AE"]);
+const COMPANY_VALUES = new Set<string>(COMPANY_OPTIONS);
+// Accept a few short aliases in CSVs so HR doesn't have to type the legal
+// suffix every time. Map normalised (lowercased, trimmed) input → canonical.
+const COMPANY_ALIASES: Record<string, string> = {
+  "ortus": "Ortus Strategy Pte. Ltd.",
+  "ortus strategy": "Ortus Strategy Pte. Ltd.",
+  "ortus strategy pte. ltd.": "Ortus Strategy Pte. Ltd.",
+  "ortus strategy pte ltd": "Ortus Strategy Pte. Ltd.",
+  "m-club": "m-Club Coaching LTD.",
+  "mclub": "m-Club Coaching LTD.",
+  "m-club coaching": "m-Club Coaching LTD.",
+  "m-club coaching ltd.": "m-Club Coaching LTD.",
+  "m-club coaching ltd": "m-Club Coaching LTD.",
+  "trinity": "Trinity Outsourcing Solutions Inc.",
+  "trinity outsourcing": "Trinity Outsourcing Solutions Inc.",
+  "trinity outsourcing solutions": "Trinity Outsourcing Solutions Inc.",
+  "trinity outsourcing solutions inc.": "Trinity Outsourcing Solutions Inc.",
+  "trinity outsourcing solutions inc": "Trinity Outsourcing Solutions Inc.",
+  "apex": "APEX Strategy",
+  "apex strategy": "APEX Strategy",
+};
 
 const text = (raw: string): ParsedValue => ({
   ok: true,
@@ -121,11 +145,24 @@ const enumIn = (allowed: Set<string>) =>
     return { ok: true, value: v };
   };
 
+const company = (raw: string): ParsedValue => {
+  const v = raw.trim();
+  if (v.length === 0) return { ok: true, value: null };
+  const canon = COMPANY_ALIASES[v.toLowerCase()] ?? v;
+  if (!COMPANY_VALUES.has(canon))
+    return {
+      ok: false,
+      error: `"${raw}" not in [${Array.from(COMPANY_VALUES).join(", ")}]`,
+    };
+  return { ok: true, value: canon };
+};
+
 export const BUILT_IN_IMPORT_SPECS: Record<string, BuiltInImportSpec> = {
   preferred_name: { column: "preferred_name", parse: text },
   first_name: { column: "first_name", parse: text },
   middle_name: { column: "middle_name", parse: text },
   last_name: { column: "last_name", parse: text },
+  company: { column: "company", parse: company },
   department: { column: "department", parse: text },
   job_title: { column: "job_title", parse: text },
   location: { column: "location", parse: text },

@@ -9,6 +9,7 @@ const ALLOWED_FIELDS = new Set([
   "birthday",
   "hire_date",
   "end_date",
+  "company",
   "department",
   "job_title",
   "location",

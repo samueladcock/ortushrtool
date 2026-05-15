@@ -25,6 +25,37 @@ const ROLE_MAP: Record<string, string> = {
   "SUPER ADMIN": "super_admin",
 };
 
+const COMPANY_VALUES = [
+  "Ortus Strategy Pte. Ltd.",
+  "m-Club Coaching LTD.",
+  "Trinity Outsourcing Solutions Inc.",
+  "APEX Strategy",
+] as const;
+const COMPANY_ALIASES: Record<string, string> = {
+  "ortus": "Ortus Strategy Pte. Ltd.",
+  "ortus strategy": "Ortus Strategy Pte. Ltd.",
+  "ortus strategy pte. ltd.": "Ortus Strategy Pte. Ltd.",
+  "ortus strategy pte ltd": "Ortus Strategy Pte. Ltd.",
+  "m-club": "m-Club Coaching LTD.",
+  "mclub": "m-Club Coaching LTD.",
+  "m-club coaching": "m-Club Coaching LTD.",
+  "m-club coaching ltd.": "m-Club Coaching LTD.",
+  "m-club coaching ltd": "m-Club Coaching LTD.",
+  "trinity": "Trinity Outsourcing Solutions Inc.",
+  "trinity outsourcing": "Trinity Outsourcing Solutions Inc.",
+  "trinity outsourcing solutions": "Trinity Outsourcing Solutions Inc.",
+  "trinity outsourcing solutions inc.": "Trinity Outsourcing Solutions Inc.",
+  "trinity outsourcing solutions inc": "Trinity Outsourcing Solutions Inc.",
+  "apex": "APEX Strategy",
+  "apex strategy": "APEX Strategy",
+};
+function normaliseCompany(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  const canon = COMPANY_ALIASES[v.toLowerCase()] ?? v;
+  return (COMPANY_VALUES as readonly string[]).includes(canon) ? canon : null;
+}
+
 interface ParsedRow {
   preferredName: string;
   firstName: string;
@@ -34,6 +65,7 @@ interface ParsedRow {
   email: string;
   timezone: string;
   role: string;
+  company: string;
   department: string;
   jobTitle: string;
   managerEmail: string;
@@ -83,6 +115,7 @@ function parseCSV(csvText: string): ParsedRow[] {
 
   const tzIdx = col(["timezone", "time zone", "tz"]);
   const roleIdx = col(["role"]);
+  const companyIdx = col(["company", "entity"]);
   const deptIdx = col(["department", "dept"]);
   const jobTitleIdx = col(["job title", "job_title", "title", "position"]);
   const managerIdx = col(["manager", "manager email", "manager_email", "manager name", "manager_name"]);
@@ -130,6 +163,7 @@ function parseCSV(csvText: string): ParsedRow[] {
 
     const tz = tzIdx >= 0 ? parts[tzIdx] || "" : "";
     const roleRaw = roleIdx >= 0 ? (parts[roleIdx] || "").toUpperCase() : "";
+    const companyRaw = companyIdx >= 0 ? parts[companyIdx] || "" : "";
     const country = countryIdx >= 0 ? (parts[countryIdx] || "").toUpperCase() : "";
     const desktimeRaw = desktimeIdx >= 0 ? parts[desktimeIdx] : "";
     const desktimeUrlRaw = desktimeUrlIdx >= 0 ? parts[desktimeUrlIdx] || "" : "";
@@ -174,6 +208,7 @@ function parseCSV(csvText: string): ParsedRow[] {
       email,
       timezone: tz ? (TIMEZONE_MAP[tz] ?? tz) : "",
       role: ROLE_MAP[roleRaw] ?? (roleRaw ? roleRaw.toLowerCase() : ""),
+      company: companyRaw,
       department: deptIdx >= 0 ? parts[deptIdx] || "" : "",
       jobTitle: jobTitleIdx >= 0 ? parts[jobTitleIdx] || "" : "",
       managerEmail: managerIdx >= 0 ? parts[managerIdx] || "" : "",
@@ -274,6 +309,14 @@ export async function POST(request: Request) {
               updateFields.role = row.role;
             } else {
               results.errors.push(`${row.email}: invalid role "${row.role}" (must be employee, manager, hr_admin, or super_admin)`);
+            }
+          }
+          if (row.company) {
+            const canonCompany = normaliseCompany(row.company);
+            if (canonCompany) {
+              updateFields.company = canonCompany;
+            } else {
+              results.errors.push(`${row.email}: invalid company "${row.company}" (must be one of ${COMPANY_VALUES.join(", ")})`);
             }
           }
           if (row.department) updateFields.department = row.department;

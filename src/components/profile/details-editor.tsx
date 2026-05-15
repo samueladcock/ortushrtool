@@ -10,19 +10,26 @@ import {
   Globe,
   Cake,
   BriefcaseBusiness,
+  Building2,
   CalendarX,
   Users,
   Pencil,
   Save,
   X,
 } from "lucide-react";
-import { HOLIDAY_COUNTRY_LABELS, type HolidayCountry } from "@/types/database";
+import {
+  COMPANY_OPTIONS,
+  HOLIDAY_COUNTRY_LABELS,
+  type Company,
+  type HolidayCountry,
+} from "@/types/database";
 
 type DetailsUser = {
   id: string;
   email: string;
   timezone: string | null;
   holiday_country: string | null;
+  company: string | null;
   birthday: string | null;
   hire_date: string | null;
   end_date: string | null;
@@ -67,6 +74,7 @@ export function DetailsEditor({
   const [draft, setDraft] = useState({
     timezone: user.timezone ?? "",
     holiday_country: user.holiday_country ?? "",
+    company: user.company ?? "",
     birthday: user.birthday ?? "",
     hire_date: user.hire_date ?? "",
     end_date: user.end_date ?? "",
@@ -144,6 +152,7 @@ export function DetailsEditor({
                 setDraft({
                   timezone: user.timezone ?? "",
                   holiday_country: user.holiday_country ?? "",
+                  company: user.company ?? "",
                   birthday: user.birthday ?? "",
                   hire_date: user.hire_date ?? "",
                   end_date: user.end_date ?? "",
@@ -217,6 +226,28 @@ export function DetailsEditor({
                     ] ?? user.holiday_country)
                   : "—"}
               </span>
+            )}
+          </Row>
+        )}
+        {canSeeBuiltIn("company") && (
+          <Row icon={<Building2 size={16} />} label="Company">
+            {editing ? (
+              <select
+                value={draft.company}
+                onChange={(e) =>
+                  setDraft({ ...draft, company: e.target.value as Company | "" })
+                }
+                className="rounded-lg border border-gray-300 px-2 py-1 text-sm"
+              >
+                <option value="">—</option>
+                {COMPANY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-gray-900">{user.company ?? "—"}</span>
             )}
           </Row>
         )}

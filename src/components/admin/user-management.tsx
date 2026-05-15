@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Pencil, Save, X, Calendar, Trash2, Plus, KeyRound, Palmtree, Download, UserCog } from "lucide-react";
 import { EmployeeLeaveTypesModal } from "./employee-leave-types";
-import type { User, UserRole, HolidayCountry } from "@/types/database";
-import { HOLIDAY_COUNTRY_LABELS } from "@/types/database";
+import type { User, UserRole, HolidayCountry, Company } from "@/types/database";
+import { HOLIDAY_COUNTRY_LABELS, COMPANY_OPTIONS } from "@/types/database";
 import { displayName } from "@/lib/utils";
 
 const COUNTRY_OPTIONS: HolidayCountry[] = ["PH", "XK", "IT", "AE"];
@@ -46,6 +46,7 @@ export function UserManagement({
       (u.middle_name?.toLowerCase().includes(q) ?? false) ||
       (u.last_name?.toLowerCase().includes(q) ?? false) ||
       u.email.toLowerCase().includes(q) ||
+      (u.company ?? "").toLowerCase().includes(q) ||
       (u.department ?? "").toLowerCase().includes(q) ||
       (u.job_title ?? "").toLowerCase().includes(q)
     );
@@ -60,6 +61,7 @@ export function UserManagement({
       last_name: user.last_name,
       full_name: user.full_name,
       role: user.role,
+      company: user.company,
       department: user.department,
       job_title: user.job_title,
       manager_id: user.manager_id,
@@ -244,6 +246,7 @@ export function UserManagement({
       "Last Name",
       "Email",
       "Role",
+      "Company",
       "Department",
       "Job Title",
       "Manager Email",
@@ -276,6 +279,7 @@ export function UserManagement({
           `"${u.last_name ?? ""}"`,
           u.email,
           u.role,
+          `"${u.company ?? ""}"`,
           `"${u.department ?? ""}"`,
           `"${u.job_title ?? ""}"`,
           managerEmail,
@@ -369,6 +373,7 @@ export function UserManagement({
                 <th className="px-4 py-3 font-medium text-gray-600">Last Name</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Email</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Role</th>
+                <th className="px-4 py-3 font-medium text-gray-600">Company</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Department</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Job Title</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Manager</th>
@@ -473,6 +478,29 @@ export function UserManagement({
                         <span className="capitalize">
                           {user.role.replace("_", " ")}
                         </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isEditing ? (
+                        <select
+                          value={editForm.company ?? ""}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              company: (e.target.value || null) as Company | null,
+                            })
+                          }
+                          className="rounded border px-2 py-1 text-sm"
+                        >
+                          <option value="">—</option>
+                          {COMPANY_OPTIONS.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        user.company || "-"
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -859,6 +887,7 @@ function AddUserModal({
     last_name: "",
     email: "",
     role: "employee" as UserRole,
+    company: "" as Company | "",
     department: "",
     job_title: "",
     manager_id: "",
@@ -910,6 +939,7 @@ function AddUserModal({
           manager_id: form.manager_id || null,
           desktime_employee_id: form.desktime_employee_id || null,
           desktime_url: form.desktime_url || null,
+          company: form.company || null,
           department: form.department || null,
           job_title: form.job_title || null,
           schedule,
@@ -973,6 +1003,15 @@ function AddUserModal({
               <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })} className={inputClass}>
                 {roleOptions.map((r) => (
                   <option key={r} value={r}>{r.replace("_", " ")}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Company</label>
+              <select value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value as Company | "" })} className={inputClass}>
+                <option value="">—</option>
+                {COMPANY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
                 ))}
               </select>
             </div>

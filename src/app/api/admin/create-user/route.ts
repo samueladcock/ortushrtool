@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { full_name, preferred_name, first_name, middle_name, last_name, email, role, department, job_title, manager_id, desktime_employee_id, desktime_url, holiday_country, schedule } = body;
+  const { full_name, preferred_name, first_name, middle_name, last_name, email, role, company, department, job_title, manager_id, desktime_employee_id, desktime_url, holiday_country, schedule } = body;
 
   if (!email) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -72,6 +72,7 @@ export async function POST(request: Request) {
     role: role || "employee",
     holiday_country: holiday_country || "PH",
   };
+  if (company) updateFields.company = company;
   if (department) updateFields.department = department;
   if (job_title) updateFields.job_title = job_title;
   if (manager_id) updateFields.manager_id = manager_id;
